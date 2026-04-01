@@ -555,9 +555,11 @@ function renderDashboard(){
   const inc=tx.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
   const exp=tx.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
 
-  // Saldo real time = saldo awal + semua pemasukan - semua pengeluaran
-  const tInc=transactions.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
-  const tExp=transactions.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+  // Hanya hitung transaksi SETELAH saldo awal di-set
+  const saldoAwalDate=localStorage.getItem('dompetku_saldo_awal_date');
+  const txAfter=saldoAwalDate?transactions.filter(t=>new Date(t.date)>=new Date(saldoAwalDate)):transactions;
+  const tInc=txAfter.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+  const tExp=txAfter.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
   const saldoSekarang=saldoAwal+tInc-tExp;
   const profit=saldoSekarang-saldoAwal;
 
@@ -633,7 +635,7 @@ function tandaiLunas(id){if(confirm('Tandai lunas?')){const h=hutangPiutang.find
 function deleteHP(id){if(confirm('Hapus?')){hutangPiutang=hutangPiutang.filter(h=>h.id!==id);saveData();renderHP();}}
 
 function openSaldoAwalModal(){document.getElementById('saldoAwalInput').value=saldoAwal>0?saldoAwal.toLocaleString('id-ID'):'';document.getElementById('saldoAwalHint').textContent=saldoAwal>0?'= '+fmt(saldoAwal):'';openModal('saldoAwalModal');}
-function saveSaldoAwal(){saldoAwal=parseAmt(document.getElementById('saldoAwalInput').value);saveData();renderSaldoAwal();renderDashboard();closeModal('saldoAwalModal');}
+function saveSaldoAwal(){saldoAwal=parseAmt(document.getElementById('saldoAwalInput').value);localStorage.setItem('dompetku_saldo_awal_date',new Date().toISOString());saveData();renderSaldoAwal();renderDashboard();closeModal('saldoAwalModal');}
 function renderSaldoAwal(){document.getElementById('saldoAwalKelola').textContent=fmt(saldoAwal);}
 
 function renderTxList(){
