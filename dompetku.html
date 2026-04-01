@@ -295,12 +295,12 @@
 <div class="page" id="page-kelola">
   <div class="section" style="margin-top:16px;">
     <div class="section-header">
-      <span class="section-title">💼 Saldo Awal</span>
+      <span class="section-title">💰 Saldo Sekarang</span>
       <button class="link-btn" onclick="openSaldoAwalModal()">Atur</button>
     </div>
     <div class="saldo-awal-card">
       <div>
-        <div class="saldo-awal-label">Uang kamu sebelum pakai DompetKu</div>
+        <div class="saldo-awal-label">Patokan profit permanen: ${fmt(saldoAwal)}</div>
         <div class="saldo-awal-val" id="saldoAwalKelola">Rp 0</div>
       </div>
       <div style="font-size:28px;">💰</div>
@@ -431,10 +431,10 @@
 <div class="modal-overlay" id="saldoAwalModal">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-title">💼 Atur Saldo Awal</div>
-    <div style="font-size:12px;color:var(--text2);margin-bottom:16px;">Uang yang kamu punya sebelum mulai pakai DompetKu. Dipakai untuk menghitung profit/minus kamu secara total.</div>
+    <div class="modal-title">💰 Input Saldo Sekarang</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:16px;">Masukkan saldo kamu sekarang (misal dari BRImo). Pertama kali diinput otomatis jadi patokan profit permanen.</div>
     <div class="form-group">
-      <label class="form-label">Saldo Awal (Rp)</label>
+      <label class="form-label">Saldo Sekarang (Rp)</label>
       <input class="form-input amount" type="text" id="saldoAwalInput" placeholder="0" inputmode="numeric" oninput="fmtInput(this,'saldoAwalHint')">
       <div class="amount-hint" id="saldoAwalHint"></div>
     </div>
@@ -480,6 +480,9 @@ let categories=JSON.parse(localStorage.getItem('dompetku_cats')||'null')||[
 ];
 let goals=JSON.parse(localStorage.getItem('dompetku_goals')||'[]');
 let hutangPiutang=JSON.parse(localStorage.getItem('dompetku_hp')||'[]');
+// saldoMulai = saldo yang diinput pertama kali, berubah real time tiap transaksi
+// saldoAwal = permanen sebagai pembanding profit, tersimpan pertama kali set
+let saldoMulai=parseFloat(localStorage.getItem('dompetku_saldo_mulai')||'0');
 let saldoAwal=parseFloat(localStorage.getItem('dompetku_saldo_awal')||'0');
 let lastTxDate=localStorage.getItem('dompetku_lastTx');
 let currentType='expense',selectedCat=null,editCatId=null,currentMonth=new Date(),currentHPTab='piutang';
@@ -505,6 +508,7 @@ function saveData(){
   localStorage.setItem('dompetku_cats',JSON.stringify(categories));
   localStorage.setItem('dompetku_goals',JSON.stringify(goals));
   localStorage.setItem('dompetku_hp',JSON.stringify(hutangPiutang));
+  localStorage.setItem('dompetku_saldo_mulai',saldoMulai);
   localStorage.setItem('dompetku_saldo_awal',saldoAwal);
   if(lastTxDate)localStorage.setItem('dompetku_lastTx',lastTxDate);
 }
@@ -555,10 +559,11 @@ function renderDashboard(){
   const inc=tx.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
   const exp=tx.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
 
-  // Simpel kayak Excel: saldo awal +/- semua transaksi
+  // Saldo sekarang = saldo mulai + semua transaksi
   const tInc=transactions.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
   const tExp=transactions.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
-  const saldoSekarang=saldoAwal+tInc-tExp;
+  const saldoSekarang=saldoMulai+tInc-tExp;
+  // Profit = saldo sekarang - saldo awal (permanen)
   const profit=saldoSekarang-saldoAwal;
 
   const balEl=document.getElementById('balanceAmount');
@@ -569,7 +574,6 @@ function renderDashboard(){
   document.getElementById('totalExpense').textContent=fmt(exp);
   document.getElementById('donutMonth').textContent=monthFull[now.getMonth()];
   document.getElementById('saldoAwalDisplay').textContent=fmt(saldoAwal);
-
   const pEl=document.getElementById('profitDisplay');const pIcon=document.getElementById('profitIcon');
   if(profit>0){pEl.textContent='+'+fmt(profit);pEl.className='profit-val up';pIcon.textContent='📈';}
   else if(profit<0){pEl.textContent=fmtSaldo(profit);pEl.className='profit-val down';pIcon.textContent='📉';}
@@ -632,9 +636,18 @@ function saveHP(){const n=document.getElementById('hpName').value.trim();const a
 function tandaiLunas(id){if(confirm('Tandai lunas?')){const h=hutangPiutang.find(x=>x.id===id);if(h){h.lunas=true;h.tanggalLunas=new Date().toISOString();}saveData();renderHP();}}
 function deleteHP(id){if(confirm('Hapus?')){hutangPiutang=hutangPiutang.filter(h=>h.id!==id);saveData();renderHP();}}
 
-function openSaldoAwalModal(){document.getElementById('saldoAwalInput').value=saldoAwal>0?saldoAwal.toLocaleString('id-ID'):'';document.getElementById('saldoAwalHint').textContent=saldoAwal>0?'= '+fmt(saldoAwal):'';openModal('saldoAwalModal');}
-function saveSaldoAwal(){saldoAwal=parseAmt(document.getElementById('saldoAwalInput').value);saveData();renderSaldoAwal();renderDashboard();closeModal('saldoAwalModal');}
-function renderSaldoAwal(){document.getElementById('saldoAwalKelola').textContent=fmt(saldoAwal);}
+function openSaldoAwalModal(){
+  document.getElementById('saldoAwalInput').value=saldoMulai>0?saldoMulai.toLocaleString('id-ID'):'';
+  document.getElementById('saldoAwalHint').textContent=saldoMulai>0?'= '+fmt(saldoMulai):'';
+  openModal('saldoAwalModal');
+}
+function saveSaldoAwal(){
+  saldoMulai=parseAmt(document.getElementById('saldoAwalInput').value);
+  // Kalau saldo awal permanen belum pernah di-set, simpan sekarang
+  if(!saldoAwal) saldoAwal=saldoMulai;
+  saveData();renderSaldoAwal();renderDashboard();closeModal('saldoAwalModal');
+}
+function renderSaldoAwal(){document.getElementById('saldoAwalKelola').textContent=fmt(saldoMulai);}
 
 function renderTxList(){
   document.getElementById('txMonthLabel').textContent=monthFull[currentMonth.getMonth()]+' '+currentMonth.getFullYear();
