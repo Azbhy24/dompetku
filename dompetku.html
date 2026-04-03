@@ -203,20 +203,20 @@ select.finp{appearance:none;}
 
 <!-- DASHBOARD -->
 <div class="page active" id="page-dashboard">
-  <div class="balance-card">
-    <div class="balance-label">Saldo Sekarang</div>
+  <div class="balance-card" onclick="openDetailModal('all')" style="cursor:pointer;">
+    <div class="balance-label">Saldo Sekarang <span style="opacity:0.7;font-size:10px;">(tap untuk detail)</span></div>
     <div class="balance-amount" id="balAmt">Rp 0</div>
     <div class="balance-sub" id="balSub">April 2026</div>
     <div class="balance-badge badge-aman" id="balBadge">✅ Aman</div>
   </div>
 
   <div class="stats-row">
-    <div class="stat-card">
+    <div class="stat-card" onclick="openDetailModal('income')" style="cursor:pointer;">
       <div class="stat-icon">📈</div>
       <div class="stat-label">Pemasukan</div>
       <div class="stat-val inc" id="totalInc">Rp 0</div>
     </div>
-    <div class="stat-card">
+    <div class="stat-card" onclick="openDetailModal('expense')" style="cursor:pointer;">
       <div class="stat-icon">📉</div>
       <div class="stat-label">Pengeluaran</div>
       <div class="stat-val exp" id="totalExp">Rp 0</div>
@@ -448,6 +448,19 @@ select.finp{appearance:none;}
     </div>
     <button class="btn-ok" onclick="saveCat()">Simpan</button>
     <button class="btn-cancel" onclick="closeModal('catModal')">Batal</button>
+  </div>
+</div>
+
+<!-- MODAL DETAIL TRANSAKSI -->
+<div class="overlay" id="detailModal">
+  <div class="modal">
+    <div class="mhandle"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <div class="mtitle" id="detailTitle" style="margin-bottom:0;">Semua Transaksi</div>
+      <button onclick="hapusSemua()" style="font-size:11px;color:var(--red);font-weight:700;background:var(--red-light);border:none;padding:6px 10px;border-radius:8px;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;">🗑️ Hapus Semua</button>
+    </div>
+    <div id="detailList" style="display:flex;flex-direction:column;gap:8px;max-height:60vh;overflow-y:auto;"></div>
+    <button class="btn-cancel" onclick="closeModal('detailModal')">Tutup</button>
   </div>
 </div>
 
@@ -838,9 +851,51 @@ function saveTx(){
   save();closeModal('txModal');renderDashboard();renderTxList();
 }
 
-document.querySelectorAll('.overlay').forEach(el=>{el.addEventListener('click',e=>{if(e.target===el)el.classList.remove('open');});});
+// DETAIL MODAL
+let curDetailFilter = 'all';
+function openDetailModal(filter) {
+  curDetailFilter = filter;
+  const titles = {all:'💰 Semua Transaksi', income:'📈 Pemasukan', expense:'📉 Pengeluaran'};
+  document.getElementById('detailTitle').textContent = titles[filter];
+  renderDetailList();
+  openModal('detailModal');
+}
+function renderDetailList() {
+  const filtered = curDetailFilter==='all' ? txs : txs.filter(t=>t.type===curDetailFilter);
+  const sorted = [...filtered].sort((a,b)=>new Date(b.date)-new Date(a.date));
+  const el = document.getElementById('detailList');
+  if(!sorted.length){el.innerHTML='<div class="empty">Belum ada transaksi</div>';return;}
+  el.innerHTML = sorted.map(t=>{
+    const c = cats.find(x=>x.id===t.catId);
+    return `<div style="background:var(--card2);border-radius:10px;padding:12px;display:flex;align-items:center;gap:10px;">
+      <div style="font-size:20px;width:36px;height:36px;background:var(--card);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${c?.emoji||'📦'}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:700;">${c?.name||'Lain-lain'}</div>
+        <div style="font-size:11px;color:var(--text2);">${t.note||'—'} · ${new Date(t.date).toLocaleDateString('id-ID',{day:'numeric',month:'short'})}</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0;">
+        <div style="font-size:13px;font-weight:800;font-family:'DM Mono',monospace;color:${t.type==='income'?'var(--green)':'var(--red)'};">${t.type==='income'?'+':'-'}${fmt(t.amount)}</div>
+      </div>
+      <button onclick="delTxDetail('${t.id}')" style="width:28px;height:28px;border-radius:7px;border:none;background:var(--red-light);color:var(--red);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;">🗑️</button>
+    </div>`;
+  }).join('');
+}
+function delTxDetail(id) {
+  if(!confirm('Hapus transaksi ini?'))return;
+  txs = txs.filter(t=>t.id!==id);
+  save();renderDashboard();renderTxList();renderDetailList();
+}
+function hapusSemua() {
+  const label = curDetailFilter==='all'?'semua transaksi':curDetailFilter==='income'?'semua pemasukan':'semua pengeluaran';
+  if(!confirm(`Hapus ${label}? Saldo akan berubah.`))return;
+  if(curDetailFilter==='all') txs=[];
+  else txs=txs.filter(t=>t.type!==curDetailFilter);
+  save();renderDashboard();renderTxList();renderDetailList();
+}
 
-// INIT
+
+
+document.querySelectorAll('.overlay').forEach(el=>{el.addEventListener('click',e=>{if(e.target===el)el.classList.remove('open');});});
 curMonth=new Date();
 renderDashboard();
 renderTxList();
