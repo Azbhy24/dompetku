@@ -545,6 +545,36 @@ function getRealBalance() {
   return saldoAwal + tInc - tExp;
 }
 
+function getGoalIcon(name) {
+  const n = String(name||'').toLowerCase();
+  const iconMap = [
+    {icon:'🌀', keys:['kipas','angin','fan']},
+    {icon:'🏍️', keys:['motor','servis motor','service motor','bensin','helm']},
+    {icon:'💻', keys:['laptop','notebook','macbook','komputer']},
+    {icon:'📱', keys:['hp','handphone','ponsel','iphone','android','gadget']},
+    {icon:'🏠', keys:['kos','kontrakan','rumah','sewa']},
+    {icon:'🎓', keys:['kuliah','kampus','semester','ukt','skripsi','wisuda']},
+    {icon:'✈️', keys:['liburan','travel','jalan jalan','jalan-jalan','tiket','mudik']},
+    {icon:'🍽️', keys:['makan','makanan','jajan','ngopi','nongkrong']},
+    {icon:'🛋️', keys:['meja','kursi','lemari','kasur','sofa','furnitur']},
+    {icon:'👟', keys:['sepatu','sandal']},
+    {icon:'👕', keys:['baju','jaket','celana','pakaian','outfit']},
+    {icon:'💍', keys:['nikah','pernikahan','lamaran','cincin']},
+    {icon:'🕌', keys:['umroh','haji']},
+    {icon:'🚗', keys:['mobil','servis mobil','service mobil']},
+    {icon:'🚲', keys:['sepeda']},
+    {icon:'📚', keys:['buku','kursus','kelas','belajar']},
+    {icon:'🎮', keys:['game','gaming','ps','playstation']},
+    {icon:'📷', keys:['kamera','camera']},
+    {icon:'⌚', keys:['jam tangan','watch']},
+    {icon:'💼', keys:['usaha','bisnis','modal']},
+    {icon:'🛟', keys:['darurat','emergency','cadangan']},
+    {icon:'💰', keys:['tabungan','saving','simpanan']},
+  ];
+  const found = iconMap.find(item => item.keys.some(k => n.includes(k)));
+  return found ? found.icon : '🎯';
+}
+
 function fmtIn(el, hintId) {
   let raw = el.value.replace(/\D/g,'');
   if(!raw){el.value='';document.getElementById(hintId).textContent='';return;}
@@ -731,6 +761,27 @@ function renderGoals() {
   }).join('');
 }
 
+function renderGoals() {
+  const el = document.getElementById('goalsList');
+  if(!goals.length){el.innerHTML='<div class="empty">Belum ada goals. Tap + untuk tambah!</div>';return;}
+  el.innerHTML = goals.map(g=>{
+    const pct = g.target>0?Math.min(100,Math.round(g.terkumpul/g.target*100)):0;
+    const icon = getGoalIcon(g.name);
+    return `<div class="goal-card">
+      <div class="goal-hd">
+        <div class="goal-name">${icon} ${esc(g.name)}</div>
+        <div class="goal-pct">${pct}%</div>
+        <div class="goal-acts">
+          <button class="gbtn add" onclick="openSisihModal('${g.id}')">➕</button>
+          <button class="gbtn del" onclick="delGoal('${g.id}')">🗑️</button>
+        </div>
+      </div>
+      <div class="prog-track"><div class="prog-fill" style="width:${pct}%"></div></div>
+      <div class="goal-ft"><span>Terkumpul: ${fmt(g.terkumpul)}</span><span>Target: ${fmt(g.target)}</span></div>
+      ${pct>=100?'<div style="font-size:12px;color:var(--green);font-weight:700;margin-top:6px;text-align:center;">🎉 Target tercapai!</div>':''}
+    </div>`;
+  }).join('');
+}
 function openGoalModal(){document.getElementById('goalName').value='';document.getElementById('goalAmt').value='';document.getElementById('goalAmtHint').textContent='';openModal('goalModal');}
 function saveGoal(){
   const n=document.getElementById('goalName').value.trim();
