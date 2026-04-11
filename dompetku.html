@@ -307,6 +307,17 @@ select.finp{appearance:none;}
   </div>
 
   <div class="sec">
+    <div class="sec-hd"><span class="sec-title">Target Saldo</span></div>
+    <div class="saldo-card" onclick="openTargetModal()">
+      <div>
+        <div class="saldo-label">Tap untuk atur target untung</div>
+        <div class="saldo-val" id="targetSaldoVal">Rp 0</div>
+      </div>
+      <div style="font-size:28px;">🎯</div>
+    </div>
+  </div>
+
+  <div class="sec">
     <div class="sec-hd">
       <span class="sec-title">📂 Kategori</span>
       <button class="link-btn" onclick="openAddCatModal()">+ Tambah</button>
@@ -439,6 +450,22 @@ select.finp{appearance:none;}
     </div>
     <button class="btn-ok" onclick="saveSaldo()">Simpan</button>
     <button class="btn-cancel" onclick="closeModal('saldoModal')">Batal</button>
+  </div>
+</div>
+
+<!-- MODAL TARGET -->
+<div class="overlay" id="targetModal">
+  <div class="modal">
+    <div class="mhandle"></div>
+    <div class="mtitle">Atur Target Saldo</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:16px;">Target ini dipakai untuk menentukan kapan status saldo berubah menjadi UNTUNG.</div>
+    <div class="fgrp">
+      <label class="flbl">Target (Rp)</label>
+      <input class="finp amt" type="text" id="targetInp" placeholder="0" inputmode="numeric" oninput="fmtIn(this,'targetHint')">
+      <div class="amt-hint" id="targetHint"></div>
+    </div>
+    <button class="btn-ok" onclick="saveTargetSaldo()">Simpan</button>
+    <button class="btn-cancel" onclick="closeModal('targetModal')">Batal</button>
   </div>
 </div>
 
@@ -582,7 +609,7 @@ function render(name) {
   if(name==='dashboard') renderDashboard();
   if(name==='transaksi') renderTxList();
   if(name==='hutang') renderHP();
-  if(name==='kelola') { renderCats(); renderStats(); renderSaldo(); }
+  if(name==='kelola') { renderCats(); renderStats(); renderSaldo(); renderTargetSaldo(); }
 }
 
 // ALERT
@@ -776,14 +803,27 @@ function openSaldoModal(){
 function saveSaldo(){
   saldoAwal=parseA(document.getElementById('saldoInp').value);
   if(!targetSaldo || targetSaldo<saldoAwal) targetSaldo = saldoAwal;
-  save();renderSaldo();renderDashboard();closeModal('saldoModal');
+  save();renderSaldo();renderTargetSaldo();renderDashboard();closeModal('saldoModal');
 }
 function renderSaldo(){document.getElementById('saldoAwalVal').textContent=fmt(saldoAwal);}
+function renderTargetSaldo(){document.getElementById('targetSaldoVal').textContent=fmt(targetSaldo>0?targetSaldo:saldoAwal);}
 function resetSaldo(){
   if(!confirm('Reset saldo ke nol? Transaksi tetap ada.'))return;
   saldoAwal=0;
   localStorage.setItem('dk_saldo','0');
-  save();renderSaldo();renderDashboard();
+  save();renderSaldo();renderTargetSaldo();renderDashboard();
+}
+function openTargetModal(){
+  const current=targetSaldo>0?targetSaldo:saldoAwal;
+  document.getElementById('targetInp').value=current>0?current.toLocaleString('id-ID'):'';
+  document.getElementById('targetHint').textContent=current>0?'= '+fmt(current):'';
+  openModal('targetModal');
+}
+function saveTargetSaldo(){
+  const val=parseA(document.getElementById('targetInp').value);
+  if(!val)return alert('Target wajib diisi!');
+  targetSaldo=val;
+  save();renderTargetSaldo();renderDashboard();closeModal('targetModal');
 }
 
 // TRANSAKSI
@@ -985,6 +1025,7 @@ function handleImportFile(e) {
       renderCats();
       renderStats();
       renderSaldo();
+      renderTargetSaldo();
       alert('Import berhasil.');
     } catch(err) {
       alert('File backup tidak valid.');
@@ -1005,6 +1046,8 @@ curMonth=new Date();
 renderDashboard();
 renderTxList();
 renderHP();
+renderSaldo();
+renderTargetSaldo();
 </script>
 </body>
 </html>
