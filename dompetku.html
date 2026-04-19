@@ -110,10 +110,12 @@ body.splash-lock{overflow:hidden;}
 .tx-right{text-align:right;flex-shrink:0;}
 .tx-amt{font-size:14px;font-weight:800;font-family:'DM Mono',monospace;}
 .tx-amt.inc{color:var(--green);}.tx-amt.exp{color:var(--red);}
+.tx-amt.sys{color:var(--blue);}
 .tx-time{font-size:10px;color:var(--text3);margin-top:2px;}
 .tx-del{position:absolute;right:0;top:0;bottom:0;width:0;background:var(--red);display:flex;align-items:center;justify-content:center;overflow:hidden;transition:width 0.2s;cursor:pointer;border-radius:0 var(--radius-sm) var(--radius-sm) 0;}
 .tx-item.swiped .tx-del{width:56px;}
 .tx-empty{text-align:center;padding:40px 20px;color:var(--text3);font-size:13px;font-weight:600;}
+.tx-badge{display:inline-block;font-size:9px;font-weight:800;padding:2px 6px;border-radius:999px;background:var(--blue-light);color:var(--blue);margin-top:4px;}
 /* HP */
 .hp-tabs{display:flex;background:var(--card2);border-radius:10px;padding:3px;gap:3px;margin-bottom:12px;}
 .hp-tab{flex:1;padding:8px;border-radius:8px;border:none;background:transparent;color:var(--text2);font-size:11px;font-weight:700;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:all 0.2s;}
@@ -875,7 +877,7 @@ function checkAlert() {
   const now = new Date();
   if(lastTx) {
     const diff = Math.floor((now-new Date(lastTx))/86400000);
-    if(diff>=2){b.className='alert show idle';b.innerHTML=`💤 Udah ${diff} hari gak catat nih!`;return;}
+    if(diff>=3){b.className='alert show idle';b.innerHTML=`💤 Sudah ${diff} hari belum catat transaksi. Jangan sampai ada yang kelupaan ya.`;return;}
   } else if(!txs.length){b.className='alert show idle';b.innerHTML='👋 Yuk mulai catat keuangan kamu!';return;}
   const mtx = getMonthTxs(now);
   const inc = mtx.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
@@ -1756,29 +1758,133 @@ function getRunningBalanceById(id){
   return saldoAwal;
 }
 
+function getTimelineItems(filter='all'){
+  const txItems = txs
+    .filter(t=>filter==='all' || t.type===filter)
+    .map(t=>({
+      kind:'tx',
+      id:t.id,
+      date:t.date,
+      amount:t.amount,
+      txType:t.type,
+      note:t.note||'',
+      catId:t.catId
+    }));
+
+  const hpItems = hp.flatMap(h=>{
+    const items = [{
+      kind:'hp',
+      hpEvent:'created',
+      id:`hp-created-${h.id}`,
+      hpId:h.id,
+      date:h.date,
+      amount:h.amount,
+      hpType:h.type,
+      name:h.name,
+      note:h.note||''
+    }];
+    if(h.tanggalLunas){
+      items.push({
+        kind:'hp',
+        hpEvent:h.type==='piutang' ? (h.settleState==='banked' ? 'banked' : 'cash') : 'paid',
+        id:`hp-lunas-${h.id}`,
+        hpId:h.id,
+        date:h.tanggalLunas,
+        amount:h.amount,
+        hpType:h.type,
+        name:h.name,
+        note:h.note||''
+      });
+    }
+    return items;
+  });
+
+  return [...txItems, ...hpItems].sort((a,b)=>new Date(b.date)-new Date(a.date));
+}
+
+function formatTimelineItem(item){
+  if(item.kind==='tx'){
+    const c = cats.find(x=>x.id===item.catId);
+    return {
+      emoji:c?.emoji||'📦',
+      title:esc(c?.name||'Lain-lain'),
+      subtitle:esc(item.note||'—'),
+      amountText:`${item.txType==='income'?'+':'-'}${fmt(item.amount)}`,
+      amountClass:item.txType,
+      meta:`Saldo saat itu: ${fmt(getRunningBalanceById(item.id))}`,
+      deletable:true
+    };
+  }
+
+  const isPiutang = item.hpType==='piutang';
+  const map = {
+    created: {
+      emoji:isPiutang?'🤝':'🏦',
+      title:isPiutang?`Piutang ke ${esc(item.name)}`:`Catat hutang ${esc(item.name)}`,
+      subtitle:isPiutang?'Belum mengubah saldo bank':'Belum mengubah saldo bank',
+      amountText:fmt(item.amount),
+      amountClass:'sys',
+      meta:'Catatan hutang/piutang',
+      badge:isPiutang?'Piutang':'Hutang'
+    },
+    cash: {
+      emoji:'💵',
+      title:`Piutang ${esc(item.name)} lunas`,
+      subtitle:'Masuk ke saldo saku, belum ke bank',
+      amountText:`+${fmt(item.amount)}`,
+      amountClass:'sys',
+      meta:'Saldo bank belum berubah',
+      badge:'Saldo Saku'
+    },
+    banked: {
+      emoji:'🏦',
+      title:`Piutang ${esc(item.name)} disetor`,
+      subtitle:'Sudah masuk ke saldo bank',
+      amountText:`+${fmt(item.amount)}`,
+      amountClass:'sys',
+      meta:'Transaksi bank sudah tercatat terpisah',
+      badge:'Masuk Bank'
+    },
+    paid: {
+      emoji:'✅',
+      title:`Hutang ${esc(item.name)} lunas`,
+      subtitle:'Status hutang ditutup',
+      amountText:fmt(item.amount),
+      amountClass:'sys',
+      meta:'Cek transaksi bank/cash jika ada',
+      badge:'Lunas'
+    }
+  };
+  return map[item.hpEvent];
+}
+
 function renderTxList(){
   document.getElementById('txMonthLabel').textContent=MF[curMonth.getMonth()]+' '+curMonth.getFullYear();
-  const mtx=getMonthTxs(curMonth).sort((a,b)=>new Date(b.date)-new Date(a.date));
+  const monthItems=getTimelineItems('all').filter(item=>{
+    const d = new Date(item.date);
+    return d.getFullYear()===curMonth.getFullYear() && d.getMonth()===curMonth.getMonth();
+  });
   const el=document.getElementById('txList');
-  if(!mtx.length){el.innerHTML='<div class="tx-empty">📭 Belum ada transaksi bulan ini</div>';return;}
+  if(!monthItems.length){el.innerHTML='<div class="tx-empty">📭 Belum ada aktivitas bulan ini</div>';return;}
   const grouped={};
-  mtx.forEach(t=>{const d=new Date(t.date);const k=d.toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long'});if(!grouped[k])grouped[k]=[];grouped[k].push(t);});
-  el.innerHTML=Object.entries(grouped).map(([date,txList])=>`
+  monthItems.forEach(item=>{const d=new Date(item.date);const k=d.toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long'});if(!grouped[k])grouped[k]=[];grouped[k].push(item);});
+  el.innerHTML=Object.entries(grouped).map(([date,dayItems])=>`
     <div class="tx-date-group">
       <div class="tx-date-label">${esc(date)}</div>
-      ${txList.map(t=>{const c=cats.find(x=>x.id===t.catId);const runBal=getRunningBalanceById(t.id);return `
-        <div class="tx-item" id="tx-${t.id}">
-          <div class="tx-emoji" onclick="openEditTx('${t.id}')">${c?.emoji||'📦'}</div>
-          <div class="tx-info" onclick="openEditTx('${t.id}')">
-            <div class="tx-cat">${esc(c?.name||'Lain-lain')}</div>
-            <div class="tx-note">${esc(t.note||'—')}</div>
-            <div class="tx-balance">Saldo saat itu: ${fmt(runBal)}</div>
+      ${dayItems.map(item=>{const view=formatTimelineItem(item);return `
+        <div class="tx-item" id="tx-${item.id}">
+          <div class="tx-emoji" ${item.kind==='tx' ? `onclick="openEditTx('${item.id}')"`:''}>${view.emoji}</div>
+          <div class="tx-info" ${item.kind==='tx' ? `onclick="openEditTx('${item.id}')"`:''}>
+            <div class="tx-cat">${view.title}</div>
+            <div class="tx-note">${view.subtitle}</div>
+            ${view.badge?`<div class="tx-badge">${view.badge}</div>`:''}
+            <div class="tx-balance">${view.meta}</div>
           </div>
           <div class="tx-right">
-            <div class="tx-amt ${t.type}">${t.type==='income'?'+':'-'}${fmt(t.amount)}</div>
-            <div class="tx-time">${new Date(t.date).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})}</div>
+            <div class="tx-amt ${view.amountClass}">${view.amountText}</div>
+            <div class="tx-time">${new Date(item.date).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})}</div>
           </div>
-          <div class="tx-del" onclick="delTx('${t.id}')">🗑️</div>
+          ${view.deletable?`<div class="tx-del" onclick="delTx('${item.id}')">🗑️</div>`:''}
         </div>
       `;}).join('')}
     </div>
@@ -1791,24 +1897,23 @@ function renderTxList(){
 }
 
 function renderDetailList() {
-  const filtered = curDetailFilter==='all' ? txs : txs.filter(t=>t.type===curDetailFilter);
-  const sorted = [...filtered].sort((a,b)=>new Date(b.date)-new Date(a.date));
+  const sorted = getTimelineItems(curDetailFilter);
   const el = document.getElementById('detailList');
-  if(!sorted.length){el.innerHTML='<div class="empty">Belum ada transaksi</div>';return;}
-  el.innerHTML = sorted.map(t=>{
-    const c = cats.find(x=>x.id===t.catId);
-    const runBal = getRunningBalanceById(t.id);
+  if(!sorted.length){el.innerHTML='<div class="empty">Belum ada aktivitas</div>';return;}
+  el.innerHTML = sorted.map(item=>{
+    const view = formatTimelineItem(item);
     return `<div style="background:var(--card2);border-radius:10px;padding:12px;display:flex;align-items:center;gap:10px;">
-      <div style="font-size:20px;width:36px;height:36px;background:var(--card);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${c?.emoji||'📦'}</div>
+      <div style="font-size:20px;width:36px;height:36px;background:var(--card);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${view.emoji}</div>
       <div style="flex:1;min-width:0;">
-        <div style="font-size:13px;font-weight:700;">${esc(c?.name||'Lain-lain')}</div>
-        <div style="font-size:11px;color:var(--text2);">${esc(t.note||'—')} · ${new Date(t.date).toLocaleDateString('id-ID',{day:'numeric',month:'short'})}</div>
-        <div style="font-size:10px;color:var(--text2);font-weight:700;margin-top:3px;">Saldo saat itu: ${fmt(runBal)}</div>
+        <div style="font-size:13px;font-weight:700;">${view.title}</div>
+        <div style="font-size:11px;color:var(--text2);">${view.subtitle} · ${new Date(item.date).toLocaleDateString('id-ID',{day:'numeric',month:'short'})}</div>
+        ${view.badge?`<div style="display:inline-block;font-size:9px;font-weight:800;padding:2px 6px;border-radius:999px;background:var(--blue-light);color:var(--blue);margin-top:4px;">${view.badge}</div>`:''}
+        <div style="font-size:10px;color:var(--text2);font-weight:700;margin-top:3px;">${view.meta}</div>
       </div>
       <div style="text-align:right;flex-shrink:0;">
-        <div style="font-size:13px;font-weight:800;font-family:'DM Mono',monospace;color:${t.type==='income'?'var(--green)':'var(--red)'};">${t.type==='income'?'+':'-'}${fmt(t.amount)}</div>
+        <div style="font-size:13px;font-weight:800;font-family:'DM Mono',monospace;color:${view.amountClass==='income'?'var(--green)':view.amountClass==='expense'?'var(--red)':'var(--blue)'};">${view.amountText}</div>
       </div>
-      <button onclick="delTxDetail('${t.id}')" style="width:28px;height:28px;border-radius:7px;border:none;background:var(--red-light);color:var(--red);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;">🗑️</button>
+      ${view.deletable?`<button onclick="delTxDetail('${item.id}')" style="width:28px;height:28px;border-radius:7px;border:none;background:var(--red-light);color:var(--red);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;">🗑️</button>`:''}
     </div>`;
   }).join('');
 }
