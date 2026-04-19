@@ -403,6 +403,7 @@ select.finp{appearance:none;}
     </div>
   </div>
 </div>
+</div>
 
 <button class="fab" id="mainFab" onclick="handleMainFab()" title="Tambah transaksi">＋</button>
 
@@ -614,8 +615,6 @@ select.finp{appearance:none;}
     <button class="btn-cancel" onclick="closeModal('detailModal')">Tutup</button>
   </div>
 </div>
-</div>
-
 <!-- MODAL KONFIRMASI -->
 <div class="overlay" id="confirmModal">
   <div class="confirm-box">
@@ -867,7 +866,7 @@ function render(name) {
   if(name==='dashboard') renderDashboard();
   if(name==='transaksi') renderTxList();
   if(name==='hutang') renderHP();
-  if(name==='kelola') { renderCats(); renderStats(); renderSaldo(); renderTargetSaldo(); renderSaku(); }
+  if(name==='kelola') { renderKelolaLayout(); renderCats(); renderStats(); renderSaldo(); renderTargetSaldo(); renderSaku(); }
 }
 
 // ALERT
