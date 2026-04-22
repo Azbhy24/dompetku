@@ -96,6 +96,24 @@ body.splash-lock{overflow:hidden;}
 .prog-track{height:8px;background:var(--border);border-radius:4px;overflow:hidden;}
 .prog-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--teal),#38b2ac);transition:width 0.6s;}
 .goal-ft{display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:var(--text2);font-weight:600;}
+.goal-vote-bar{margin:0 0 10px;background:var(--card2);border:1px solid var(--border);border-radius:12px;padding:10px 12px;font-size:12px;color:var(--text2);font-weight:600;}
+.goal-vote-bar.ready{color:var(--teal);border-color:var(--teal-light);background:rgba(45,212,191,.08);}
+.goal-vote-bar.used{color:var(--text2);}
+.goal-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+.goal-chip{display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:999px;background:var(--card2);border:1px solid var(--border);font-size:10px;font-weight:800;color:var(--text2);}
+.goal-chip.hot{background:rgba(251,146,60,.12);border-color:rgba(251,146,60,.28);color:var(--orange);}
+.goal-chip.vote{background:rgba(59,130,246,.10);border-color:rgba(59,130,246,.22);color:var(--blue);}
+.goal-soft-signal{margin-top:8px;font-size:11px;font-weight:700;color:var(--teal);}
+.goal-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;}
+.goal-act-btn{border:none;border-radius:10px;padding:10px 12px;font-size:12px;font-weight:800;font-family:'Plus Jakarta Sans',sans-serif;cursor:pointer;}
+.goal-act-btn.vote{background:var(--teal-light);color:var(--teal);}
+.goal-act-btn.buy{background:var(--card2);color:var(--text);}
+.goal-act-btn:disabled{opacity:.55;cursor:not-allowed;}
+.goal-history-wrap{margin-top:14px;}
+.goal-history-title{font-size:12px;font-weight:800;color:var(--text2);margin:4px 0 8px;}
+.goal-history-card{background:var(--card);border-radius:var(--radius-sm);padding:12px 14px;box-shadow:var(--shadow);}
+.goal-history-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;}
+.goal-history-date{font-size:11px;color:var(--text3);margin-top:6px;}
 /* TX */
 .month-picker{display:flex;align-items:center;justify-content:space-between;background:var(--card);margin:12px 16px 0;border-radius:var(--radius);padding:12px 16px;box-shadow:var(--shadow);}
 .mnav{width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--card2);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;}
@@ -289,7 +307,12 @@ select.finp{appearance:none;}
       <span class="sec-title">🎯 Goals Tabungan</span>
       <button class="link-btn" onclick="openGoalModal()">+ Tambah</button>
     </div>
+    <div class="goal-vote-bar" id="goalVoteBar">Vote harian belum aktif.</div>
     <div class="goals-list" id="goalsList"><div class="empty">Belum ada goals</div></div>
+    <div class="goal-history-wrap" id="goalHistoryWrap" style="display:none">
+      <div class="goal-history-title">Riwayat Pembelian</div>
+      <div class="goals-list" id="goalHistoryList"></div>
+    </div>
   </div>
 
   <div class="sec">
@@ -662,8 +685,30 @@ const MF = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','
 const parseA = s => parseFloat((s||'').replace(/\./g,''))||0;
 const esc = s => String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 
+function dayKeyLocal(value=new Date()){
+  const d = value instanceof Date ? value : new Date(value);
+  if(Number.isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function normalizeGoal(goal={}) {
+  return {
+    id: goal.id || ('g'+Date.now()+Math.floor(Math.random()*1000)),
+    name: goal.name || 'Goal',
+    target: parseFloat(goal.target||0),
+    terkumpul: parseFloat(goal.terkumpul||0),
+    vote_count: Number(goal.vote_count||0),
+    last_voted_at: goal.last_voted_at || '',
+    vote_streak: Number(goal.vote_streak||0),
+    is_purchased: !!goal.is_purchased,
+    purchased_at: goal.purchased_at || ''
+  };
+}
+
+goals = Array.isArray(goals) ? goals.map(normalizeGoal) : [];
+
 function getReservedTotal() {
-  return goals.reduce((s,g)=>s+(g.terkumpul||0),0);
+  return goals.filter(g=>!g.is_purchased).reduce((s,g)=>s+(g.terkumpul||0),0);
 }
 
 function getRealBalance() {
@@ -717,6 +762,37 @@ function getGoalIcon(name) {
   ];
   const found = iconMap.find(item => item.keys.some(k => n.includes(k)));
   return found ? found.icon : '🎯';
+}
+
+function getTodayVotedGoal() {
+  const today = dayKeyLocal();
+  return goals.find(g => g.last_voted_at && dayKeyLocal(g.last_voted_at)===today) || null;
+}
+
+function isVoteTokenAvailable() {
+  return !getTodayVotedGoal();
+}
+
+function getActiveGoals() {
+  return goals
+    .filter(g=>!g.is_purchased)
+    .sort((a,b)=>{
+      if((b.vote_count||0)!==(a.vote_count||0)) return (b.vote_count||0)-(a.vote_count||0);
+      const ad = a.last_voted_at ? new Date(a.last_voted_at).getTime() : 0;
+      const bd = b.last_voted_at ? new Date(b.last_voted_at).getTime() : 0;
+      if(bd!==ad) return bd-ad;
+      return String(a.name||'').localeCompare(String(b.name||''), 'id');
+    });
+}
+
+function getPurchasedGoals() {
+  return goals
+    .filter(g=>g.is_purchased)
+    .sort((a,b)=>{
+      const ad = a.purchased_at ? new Date(a.purchased_at).getTime() : 0;
+      const bd = b.purchased_at ? new Date(b.purchased_at).getTime() : 0;
+      return bd-ad;
+    });
 }
 
 function fmtIn(el, hintId) {
@@ -1262,7 +1338,7 @@ function exportData() {
   const payload = {
     exportedAt: new Date().toISOString(),
     version: 1,
-    data: {txs, cats, goals, hp, sakuTxs, saldoAwal, lastTx, theme: document.documentElement.getAttribute('data-theme')||'light', themeMode: savedThemeMode}
+    data: {txs, cats, goals, hp, sakuTxs, saldoAwal, lastTx, targetSaldo, theme: document.documentElement.getAttribute('data-theme')||'light', themeMode: savedThemeMode}
   };
   const blob = new Blob([JSON.stringify(payload,null,2)], {type:'application/json'});
   const url = URL.createObjectURL(blob);
@@ -1748,6 +1824,138 @@ function renderGoals() {
   }).join('');
 }
 
+function saveGoal(){
+  const n=document.getElementById('goalName').value.trim();
+  const t=parseA(document.getElementById('goalAmt').value);
+  if(!n)return alert('Nama goal wajib!');
+  if(!t)return alert('Target wajib!');
+  if(editGoalId){
+    const g = goals.find(x=>x.id===editGoalId);
+    if(g){g.name=n;g.target=t;if(g.terkumpul>t) g.terkumpul=t;}
+  } else {
+    goals.push(normalizeGoal({id:'g'+Date.now(),name:n,target:t,terkumpul:0}));
+  }
+  save();renderGoals();renderDashboard();closeModal('goalModal');
+}
+
+function renderGoalVoteBar() {
+  const el = document.getElementById('goalVoteBar');
+  if(!el) return;
+  const votedGoal = getTodayVotedGoal();
+  if(votedGoal){
+    el.className = 'goal-vote-bar used';
+    el.textContent = `Token hari ini sudah dipakai untuk "${votedGoal.name}". Besok kamu bisa vote lagi.`;
+    return;
+  }
+  el.className = 'goal-vote-bar ready';
+  el.textContent = 'Token hari ini tersedia. Kamu bisa vote 1 barang yang paling kepikiran sekarang, atau skip tanpa penalti.';
+}
+
+function renderGoalHistory() {
+  const wrap = document.getElementById('goalHistoryWrap');
+  const el = document.getElementById('goalHistoryList');
+  if(!wrap || !el) return;
+  const purchasedGoals = getPurchasedGoals();
+  if(!purchasedGoals.length){
+    wrap.style.display = 'none';
+    el.innerHTML = '';
+    return;
+  }
+  wrap.style.display = 'block';
+  el.innerHTML = purchasedGoals.map(g=>{
+    const icon = getGoalIcon(g.name);
+    const boughtDate = g.purchased_at ? new Date(g.purchased_at).toLocaleDateString('id-ID', {day:'2-digit', month:'short', year:'numeric'}) : '-';
+    return `<div class="goal-history-card">
+      <div class="goal-history-top">
+        <div>
+          <div class="goal-name">${icon} ${esc(g.name)}</div>
+          <div class="goal-history-date">Dibeli ${boughtDate}</div>
+        </div>
+        <div class="goal-chip vote">${g.vote_count||0} vote</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function voteGoal(id){
+  const g = goals.find(x=>x.id===id && !x.is_purchased);
+  if(!g) return;
+  const usedGoal = getTodayVotedGoal();
+  if(usedGoal){
+    alert(usedGoal.id===id ? 'Kamu sudah vote goal ini hari ini.' : `Token hari ini sudah dipakai untuk "${usedGoal.name}".`);
+    return;
+  }
+  const now = new Date();
+  const prevDay = g.last_voted_at ? dayKeyLocal(g.last_voted_at) : '';
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate()-1);
+  g.vote_count = Number(g.vote_count||0) + 1;
+  g.vote_streak = prevDay && prevDay===dayKeyLocal(yesterday) ? Number(g.vote_streak||0)+1 : 1;
+  g.last_voted_at = now.toISOString();
+  save();
+  renderGoals();
+}
+
+function markGoalPurchased(id){
+  const g = goals.find(x=>x.id===id && !x.is_purchased);
+  if(!g) return;
+  askConfirm(`Pindahkan "${g.name}" ke riwayat pembelian?`,()=>{
+    g.is_purchased = true;
+    g.purchased_at = new Date().toISOString();
+    save();
+    renderGoals();
+    renderDashboard();
+  },{title:'Saya Sudah Beli',okText:'Pindahkan'});
+}
+
+function renderGoals() {
+  const el = document.getElementById('goalsList');
+  if(!el) return;
+  const activeGoals = getActiveGoals();
+  const usedGoal = getTodayVotedGoal();
+  renderGoalVoteBar();
+  renderGoalHistory();
+  if(!activeGoals.length){
+    el.innerHTML='<div class="empty">Belum ada goal aktif. Tap + untuk tambah atau cek riwayat pembelian di bawah.</div>';
+    return;
+  }
+  el.innerHTML = activeGoals.map(g=>{
+    const pct = g.target>0?Math.min(100,Math.round(g.terkumpul/g.target*100)):0;
+    const icon = getGoalIcon(g.name);
+    const votedToday = usedGoal && usedGoal.id===g.id;
+    const tokenUsedByOther = usedGoal && usedGoal.id!==g.id;
+    const canVote = !usedGoal;
+    const lastVoteLabel = g.last_voted_at ? new Date(g.last_voted_at).toLocaleDateString('id-ID', {day:'2-digit', month:'short'}) : 'Belum pernah';
+    const chips = [
+      `<span class="goal-chip vote">${g.vote_count||0} vote</span>`,
+      g.vote_streak>=2 ? `<span class="goal-chip hot">Streak ${g.vote_streak} hari</span>` : '',
+      g.last_voted_at ? `<span class="goal-chip">Terakhir ${lastVoteLabel}</span>` : ''
+    ].filter(Boolean).join('');
+    const softSignal = g.vote_count>=3 ? '<div class="goal-soft-signal">Ini sering kamu pilih.</div>' : '';
+    const voteLabel = votedToday ? 'Sudah kamu pilih hari ini' : (tokenUsedByOther ? 'Token hari ini habis' : 'Vote Hari Ini');
+    return `<div class="goal-card">
+      <div class="goal-hd">
+        <div class="goal-name">${icon} ${esc(g.name)}</div>
+        <div class="goal-head-actions">
+          <div class="goal-pct">${pct}%</div>
+          <button class="gbtn add" onclick="openGoalModal('${g.id}')" title="Edit">✏️</button>
+          <button class="gbtn add" onclick="openSisihModal('${g.id}')" title="Sisihkan">➕</button>
+          <button class="gbtn del" onclick="delGoal('${g.id}')" title="Hapus">🗑️</button>
+        </div>
+      </div>
+      <div class="prog-track"><div class="prog-fill" style="width:${pct}%"></div></div>
+      <div class="goal-ft"><span>Terkumpul: ${fmt(g.terkumpul)}</span><span>Target: ${fmt(g.target)}</span></div>
+      <div class="goal-meta">${chips}</div>
+      ${softSignal}
+      <div class="goal-actions">
+        <button class="goal-act-btn vote" onclick="voteGoal('${g.id}')" ${canVote?'':'disabled'}>${voteLabel}</button>
+        <button class="goal-act-btn buy" onclick="markGoalPurchased('${g.id}')">Saya Sudah Beli</button>
+      </div>
+      ${pct>=100?'<div style="font-size:12px;color:var(--green);font-weight:700;margin-top:6px;text-align:center;">Target tercapai!</div>':''}
+    </div>`;
+  }).join('');
+}
+
 function getRunningBalanceById(id){
   const sorted = [...txs].sort((a,b)=>new Date(a.date)-new Date(b.date));
   let balance = saldoAwal;
@@ -1971,6 +2179,54 @@ function hideSplash() {
     splash.classList.add('hide');
     document.body.classList.remove('splash-lock');
   }, 850);
+}
+
+function handleImportFileV2(e) {
+  const file = e.target.files?.[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const parsed = JSON.parse(ev.target.result);
+      const data = parsed?.data || parsed;
+      if(!Array.isArray(data.txs) || !Array.isArray(data.cats) || !Array.isArray(data.goals) || !Array.isArray(data.hp)) {
+        throw new Error('Format backup tidak cocok');
+      }
+      askConfirm('Import akan menimpa data yang sekarang. Lanjut?',()=>{
+        txs = data.txs;
+        cats = data.cats;
+        goals = Array.isArray(data.goals) ? data.goals.map(normalizeGoal) : [];
+        hp = data.hp;
+        sakuTxs = Array.isArray(data.sakuTxs) ? data.sakuTxs : [];
+        saldoAwal = parseFloat(data.saldoAwal||0);
+        lastTx = data.lastTx || '';
+        targetSaldo = parseFloat(data.targetSaldo||0);
+        const theme = data.theme === 'dark' ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', theme);
+        document.getElementById('themeBtn').textContent = theme==='dark'?'â˜€ï¸':'ðŸŒ™';
+        savedTheme = theme;
+        savedThemeMode = data.themeMode === 'manual' ? 'manual' : 'auto';
+        localStorage.setItem('dk_themeMode', savedThemeMode);
+        syncThemeMode();
+        save();
+        renderDashboard();
+        renderTxList();
+        renderHP();
+        renderCats();
+        renderStats();
+        renderSaldo();
+        renderSaku();
+        renderTargetSaldo();
+        updateFab();
+        alert('Import berhasil.');
+      },{title:'Import Data',okText:'Import',danger:true});
+    } catch(err) {
+      alert('File backup tidak valid.');
+    } finally {
+      e.target.value = '';
+    }
+  };
+  reader.readAsText(file);
 }
 
 
