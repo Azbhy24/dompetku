@@ -114,6 +114,28 @@ body.splash-lock{overflow:hidden;}
 .goal-history-card{background:var(--card);border-radius:var(--radius-sm);padding:12px 14px;box-shadow:var(--shadow);}
 .goal-history-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;}
 .goal-history-date{font-size:11px;color:var(--text3);margin-top:6px;}
+.wajib-list{display:flex;flex-direction:column;gap:8px;}
+.wajib-card{background:var(--card);border-radius:var(--radius-sm);padding:14px;box-shadow:var(--shadow);}
+.wajib-head{display:flex;align-items:flex-start;gap:10px;margin-bottom:10px;}
+.wajib-name{flex:1;font-size:13px;font-weight:800;}
+.wajib-deadline{font-size:11px;color:var(--text2);margin-top:3px;font-weight:600;}
+.wajib-deadline.overdue{color:var(--red);font-weight:800;}
+.wajib-meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;}
+.wajib-mini{background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:8px 10px;}
+.wajib-mini-label{font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.3px;}
+.wajib-mini-value{font-size:12px;font-weight:800;color:var(--text);margin-top:4px;}
+.wajib-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px;}
+.wajib-chip{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;background:var(--blue-light);color:var(--blue);font-size:10px;font-weight:800;}
+.wajib-chip.overdue{background:var(--red-light);color:var(--red);}
+.mode-card{margin-top:12px;background:var(--card2);border:1px solid var(--border);border-radius:14px;padding:12px;}
+.mode-title{font-size:12px;font-weight:800;color:var(--text);}
+.mode-sub{font-size:11px;color:var(--text2);margin-top:3px;}
+.mode-options{display:flex;flex-direction:column;gap:8px;margin-top:10px;}
+.mode-option{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:12px;background:var(--card);border:1px solid var(--border);}
+.mode-option input{margin-top:2px;accent-color:var(--teal);}
+.mode-option strong{font-size:12px;color:var(--text);}
+.mode-option span{display:block;font-size:11px;color:var(--text2);margin-top:3px;line-height:1.4;}
+.mode-hint{margin-top:10px;font-size:11px;color:var(--teal);font-weight:700;}
 /* TX */
 .month-picker{display:flex;align-items:center;justify-content:space-between;background:var(--card);margin:12px 16px 0;border-radius:var(--radius);padding:12px 16px;box-shadow:var(--shadow);}
 .mnav{width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--card2);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;}
@@ -317,6 +339,14 @@ select.finp{appearance:none;}
 
   <div class="sec">
     <div class="sec-hd">
+      <span class="sec-title">Dana Wajib</span>
+      <button class="link-btn" onclick="openWajibModal()">+ Tambah</button>
+    </div>
+    <div class="wajib-list" id="wajibList"><div class="empty">Belum ada dana wajib</div></div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-hd">
       <span class="sec-title">🍩 Pengeluaran per Kategori</span>
       <span style="font-size:11px;color:var(--text2);font-weight:500;" id="donutMonth"></span>
     </div>
@@ -490,6 +520,29 @@ select.finp{appearance:none;}
   </div>
 </div>
 
+<!-- MODAL DANA WAJIB -->
+<div class="overlay" id="wajibModal">
+  <div class="modal">
+    <div class="mhandle"></div>
+    <div class="mtitle">Dana Wajib</div>
+    <div class="fgrp">
+      <label class="flbl">Nama Dana</label>
+      <input class="finp" type="text" id="wajibName" placeholder="Contoh: Biaya wisuda">
+    </div>
+    <div class="fgrp">
+      <label class="flbl">Target (Rp)</label>
+      <input class="finp amt" type="text" id="wajibAmt" placeholder="0" inputmode="numeric" oninput="fmtIn(this,'wajibAmtHint')">
+      <div class="amt-hint" id="wajibAmtHint"></div>
+    </div>
+    <div class="fgrp">
+      <label class="flbl">Deadline</label>
+      <input class="finp" type="date" id="wajibDeadline">
+    </div>
+    <button class="btn-ok" onclick="saveWajib()">Simpan</button>
+    <button class="btn-cancel" onclick="closeModal('wajibModal')">Batal</button>
+  </div>
+</div>
+
 <!-- MODAL SISIHKAN -->
 <div class="overlay" id="sisihModal">
   <div class="modal">
@@ -504,6 +557,23 @@ select.finp{appearance:none;}
     <input type="hidden" id="sisihId">
     <button class="btn-ok" onclick="saveSisih()">Sisihkan</button>
     <button class="btn-cancel" onclick="closeModal('sisihModal')">Batal</button>
+  </div>
+</div>
+
+<!-- MODAL SISIHKAN DANA WAJIB -->
+<div class="overlay" id="wajibSisihModal">
+  <div class="modal">
+    <div class="mhandle"></div>
+    <div class="mtitle" id="wajibSisihTitle">Sisihkan Dana Wajib</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:16px;" id="wajibSisihInfo"></div>
+    <div class="fgrp">
+      <label class="flbl">Jumlah (Rp)</label>
+      <input class="finp amt" type="text" id="wajibSisihAmt" placeholder="0" inputmode="numeric" oninput="fmtIn(this,'wajibSisihAmtHint')">
+      <div class="amt-hint" id="wajibSisihAmtHint"></div>
+    </div>
+    <input type="hidden" id="wajibSisihId">
+    <button class="btn-ok" onclick="saveWajibSisih()">Sisihkan</button>
+    <button class="btn-cancel" onclick="closeModal('wajibSisihModal')">Batal</button>
   </div>
 </div>
 
@@ -664,6 +734,7 @@ let cats = JSON.parse(localStorage.getItem('dk_cats')||'null') || [
   {id:'c11',name:'Freelance',emoji:'💻',type:'income'},{id:'c12',name:'Lain-lain',emoji:'💰',type:'income'},
 ];
 let goals = JSON.parse(localStorage.getItem('dk_goals')||'[]');
+let wajibFunds = JSON.parse(localStorage.getItem('dk_wajibFunds')||'[]');
 let hp = JSON.parse(localStorage.getItem('dk_hp')||'[]');
 let sakuTxs = JSON.parse(localStorage.getItem('dk_sakuTxs')||'[]');
 let saldoAwal = parseFloat(localStorage.getItem('dk_saldo')||'0');
@@ -675,6 +746,9 @@ let curType = 'expense', selCat = null, editCatId = null, curMonth = new Date(),
 let confirmResolver = null;
 let themeTimer = null;
 let editGoalId = null;
+let editWajibId = null;
+const APP_PREFS_KEY = 'app_preferences';
+let appPreferences = null;
 
 // UTILS
 const fmtN = n => Math.abs(Math.round(n)).toLocaleString('id-ID');
@@ -707,8 +781,28 @@ function normalizeGoal(goal={}) {
 
 goals = Array.isArray(goals) ? goals.map(normalizeGoal) : [];
 
-function getReservedTotal() {
+function normalizeWajibFund(item={}) {
+  return {
+    id: item.id || ('w'+Date.now()+Math.floor(Math.random()*1000)),
+    name: item.name || 'Dana Wajib',
+    target: parseFloat(item.target||0),
+    terkumpul: parseFloat(item.terkumpul||0),
+    deadline: item.deadline || ''
+  };
+}
+
+wajibFunds = Array.isArray(wajibFunds) ? wajibFunds.map(normalizeWajibFund) : [];
+
+function getReservedGoalTotal() {
   return goals.filter(g=>!g.is_purchased).reduce((s,g)=>s+(g.terkumpul||0),0);
+}
+
+function getReservedWajibTotal() {
+  return wajibFunds.reduce((s,item)=>s+(item.terkumpul||0),0);
+}
+
+function getReservedTotal() {
+  return getReservedGoalTotal() + getReservedWajibTotal();
 }
 
 function getRealBalance() {
@@ -795,6 +889,138 @@ function getPurchasedGoals() {
     });
 }
 
+function getMonthsRemaining(deadline) {
+  if(!deadline) return 1;
+  const due = new Date(deadline);
+  if(Number.isNaN(due.getTime())) return 1;
+  const now = new Date();
+  const monthDiff = (due.getFullYear() - now.getFullYear()) * 12 + (due.getMonth() - now.getMonth());
+  return Math.max(1, monthDiff + 1);
+}
+
+function getWajibRemaining(item) {
+  return Math.max(0, (item.target||0) - (item.terkumpul||0));
+}
+
+function getWajibMonthlyRecommendation(item) {
+  return Math.ceil(getWajibRemaining(item) / getMonthsRemaining(item.deadline));
+}
+
+function getWajibDeadlineLabel(deadline) {
+  if(!deadline) return 'Belum diatur';
+  const due = new Date(deadline);
+  if(Number.isNaN(due.getTime())) return 'Belum diatur';
+  return due.toLocaleDateString('id-ID', {day:'numeric', month:'short', year:'numeric'});
+}
+
+function isWajibOverdue(item) {
+  if(!item.deadline) return false;
+  const due = new Date(item.deadline);
+  if(Number.isNaN(due.getTime())) return false;
+  const endOfDay = new Date(due);
+  endOfDay.setHours(23,59,59,999);
+  return getWajibRemaining(item) > 0 && Date.now() > endOfDay.getTime();
+}
+
+function getSortedWajibFunds() {
+  return [...wajibFunds].sort((a,b)=>{
+    const overdueA = isWajibOverdue(a) ? 1 : 0;
+    const overdueB = isWajibOverdue(b) ? 1 : 0;
+    if(overdueB !== overdueA) return overdueB - overdueA;
+    const deadlineA = a.deadline ? new Date(a.deadline).getTime() : Number.MAX_SAFE_INTEGER;
+    const deadlineB = b.deadline ? new Date(b.deadline).getTime() : Number.MAX_SAFE_INTEGER;
+    if(deadlineA !== deadlineB) return deadlineA - deadlineB;
+    return String(a.name||'').localeCompare(String(b.name||''), 'id');
+  });
+}
+
+function hasExistingInstallationData() {
+  return !!(
+    txs.length ||
+    goals.length ||
+    wajibFunds.length ||
+    hp.length ||
+    sakuTxs.length ||
+    saldoAwal ||
+    targetSaldo ||
+    lastTx
+  );
+}
+
+function loadAppPreferences() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(APP_PREFS_KEY) || 'null');
+    if(parsed && (parsed.app_mode==='simple' || parsed.app_mode==='full')) {
+      return {
+        app_mode: parsed.app_mode,
+        hint_seen: !!parsed.hint_seen
+      };
+    }
+  } catch(_) {}
+  return {
+    app_mode: hasExistingInstallationData() ? 'full' : 'simple',
+    hint_seen: hasExistingInstallationData()
+  };
+}
+
+appPreferences = loadAppPreferences();
+saveAppPreferences();
+
+function saveAppPreferences() {
+  localStorage.setItem(APP_PREFS_KEY, JSON.stringify(appPreferences));
+}
+
+function isSimpleMode() {
+  return appPreferences?.app_mode === 'simple';
+}
+
+function isFullMode() {
+  return !isSimpleMode();
+}
+
+function getNavTabTarget(page, kind='nav') {
+  const clickAttr = kind==='nav' ? `switchNav('${page}',this)` : `switchTab('${page}',this)`;
+  return document.querySelector(`.${kind==='nav' ? 'nav-item' : 'tab'}[onclick="${clickAttr}"]`);
+}
+
+function setElementVisible(el, visible) {
+  if(!el) return;
+  el.style.display = visible ? '' : 'none';
+}
+
+function activatePageUI(name) {
+  currentPage = name;
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  const pageEl = document.getElementById('page-'+name);
+  if(pageEl) pageEl.classList.add('active');
+  syncNav(name);
+  const tabNames = ['dashboard','transaksi','hutang','kelola'];
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',tabNames[i]===name));
+}
+
+function applyAppMode() {
+  const simple = isSimpleMode();
+  setElementVisible(getNavTabTarget('hutang','nav'), !simple);
+  setElementVisible(getNavTabTarget('hutang','tab'), !simple);
+  setElementVisible(document.getElementById('page-hutang'), !simple);
+  const wajibSection = document.getElementById('wajibList')?.closest('.sec');
+  setElementVisible(wajibSection, !simple);
+  const voteBar = document.getElementById('goalVoteBar');
+  if(voteBar) voteBar.style.display = simple ? 'none' : '';
+  if(simple && currentPage==='hutang') {
+    activatePageUI('dashboard');
+  }
+  updateFab();
+}
+
+function setAppMode(mode) {
+  appPreferences.app_mode = mode === 'simple' ? 'simple' : 'full';
+  appPreferences.hint_seen = true;
+  saveAppPreferences();
+  applyAppMode();
+  render(currentPage);
+}
+
 function fmtIn(el, hintId) {
   let raw = el.value.replace(/\D/g,'');
   if(!raw){el.value='';document.getElementById(hintId).textContent='';return;}
@@ -807,12 +1033,14 @@ function save() {
   localStorage.setItem('dk_txs', JSON.stringify(txs));
   localStorage.setItem('dk_cats', JSON.stringify(cats));
   localStorage.setItem('dk_goals', JSON.stringify(goals));
+  localStorage.setItem('dk_wajibFunds', JSON.stringify(wajibFunds));
   localStorage.setItem('dk_hp', JSON.stringify(hp));
   localStorage.setItem('dk_sakuTxs', JSON.stringify(sakuTxs));
   localStorage.setItem('dk_saldo', saldoAwal);
   localStorage.setItem('dk_targetSaldo', targetSaldo);
   localStorage.setItem('dk_themeMode', savedThemeMode);
   localStorage.setItem('dk_theme', document.documentElement.getAttribute('data-theme')||'light');
+  saveAppPreferences();
   if(lastTx) localStorage.setItem('dk_lastTx', lastTx);
 }
 
@@ -913,6 +1141,10 @@ function closeConfirm(confirmed) {
 
 // NAV
 function switchTab(name, btn) {
+  if(isSimpleMode() && name==='hutang'){
+    name = 'dashboard';
+    btn = getNavTabTarget('dashboard','tab') || btn;
+  }
   currentPage = name;
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
@@ -924,6 +1156,10 @@ function switchTab(name, btn) {
 }
 
 function switchNav(name, el) {
+  if(isSimpleMode() && name==='hutang'){
+    name = 'dashboard';
+    el = getNavTabTarget('dashboard','nav') || el;
+  }
   currentPage = name;
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   el.classList.add('active');
@@ -944,7 +1180,7 @@ function render(name) {
   if(name==='dashboard') renderDashboard();
   if(name==='transaksi') renderTxList();
   if(name==='hutang') renderHP();
-  if(name==='kelola') { renderKelolaLayout(); renderCats(); renderStats(); renderSaldo(); renderTargetSaldo(); renderSaku(); }
+  if(name==='kelola') { renderKelolaLayout(); renderCats(); renderStats(); renderSaldo(); renderTargetSaldo(); renderSaku(); renderModeSettings(); }
 }
 
 // ALERT
@@ -1338,7 +1574,7 @@ function exportData() {
   const payload = {
     exportedAt: new Date().toISOString(),
     version: 1,
-    data: {txs, cats, goals, hp, sakuTxs, saldoAwal, lastTx, targetSaldo, theme: document.documentElement.getAttribute('data-theme')||'light', themeMode: savedThemeMode}
+    data: {txs, cats, goals, wajibFunds, hp, sakuTxs, saldoAwal, lastTx, targetSaldo, appPreferences, theme: document.documentElement.getAttribute('data-theme')||'light', themeMode: savedThemeMode}
   };
   const blob = new Blob([JSON.stringify(payload,null,2)], {type:'application/json'});
   const url = URL.createObjectURL(blob);
@@ -1459,7 +1695,9 @@ function renderDashboard() {
   const exp = mtx.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
   const saldoTotal = getRealBalance();
   const saldoSaku = getSakuBalance();
-  const danaTersisih = getReservedTotal();
+  const danaGoal = getReservedGoalTotal();
+  const danaWajib = getReservedWajibTotal();
+  const danaTersisih = danaGoal + danaWajib;
   const saldoTersedia = saldoTotal - danaTersisih;
   const selisihAwal = saldoTotal - saldoAwal;
   const targetAktif = targetSaldo>0 ? targetSaldo : saldoAwal;
@@ -1467,7 +1705,7 @@ function renderDashboard() {
   const balEl = document.getElementById('balAmt');
   balEl.textContent = fmtS(saldoTersedia);
   balEl.style.color = saldoTersedia<0?'#ff6b6b':'white';
-  document.getElementById('balSub').textContent = `${MF[now.getMonth()]} ${now.getFullYear()} | Bank ${fmtS(saldoTotal)} | Saku ${fmt(saldoSaku)} | Tersisih ${fmt(danaTersisih)} | Target ${fmt(targetAktif)}`;
+  document.getElementById('balSub').textContent = `${MF[now.getMonth()]} ${now.getFullYear()} | Bank ${fmtS(saldoTotal)} | Saku ${fmt(saldoSaku)} | Goal ${fmt(danaGoal)} | Wajib ${fmt(danaWajib)} | Target ${fmt(targetAktif)}`;
   document.getElementById('totalInc').textContent = fmt(inc);
   document.getElementById('totalExp').textContent = fmt(exp);
   document.getElementById('donutMonth').textContent = MF[now.getMonth()];
@@ -1483,6 +1721,7 @@ function renderDashboard() {
   renderDonut(mtx);
   renderTop3(mtx);
   renderGoals();
+  renderWajibFunds();
   checkAlert();
 }
 
@@ -1694,6 +1933,27 @@ function renderKelolaLayout(){
             <button class="btn-ghost" onclick="exportData()">⬇️ Export Data</button>
             <button class="btn-ghost" onclick="triggerImport()">⬆️ Import Data</button>
           </div>
+          <div class="mode-card">
+            <div class="mode-title">App Mode</div>
+            <div class="mode-sub">Pilih tampilan yang lebih sederhana untuk pengguna baru, atau tampilkan semua fitur.</div>
+            <div class="mode-options">
+              <label class="mode-option">
+                <input type="radio" name="appMode" value="simple" onchange="setAppMode('simple')">
+                <div>
+                  <strong>Mode Sederhana</strong>
+                  <span>Fokus ke saldo, transaksi, goals, dan saldo saku. Cocok untuk beta user baru.</span>
+                </div>
+              </label>
+              <label class="mode-option">
+                <input type="radio" name="appMode" value="full" onchange="setAppMode('full')">
+                <div>
+                  <strong>Mode Lengkap</strong>
+                  <span>Tampilkan semua fitur termasuk hutang-piutang, Dana Wajib, dan Vote Harian.</span>
+                </div>
+              </label>
+            </div>
+            <div class="mode-hint" id="modeHint" style="display:none">Mulai dengan Mode Sederhana untuk pengalaman yang lebih ringan. Kamu bisa aktifkan Mode Lengkap kapan saja.</div>
+          </div>
         </div>
       </div>
     </div>
@@ -1775,6 +2035,13 @@ function renderSaku() {
   if(ib) ib.textContent = text;
 }
 
+function renderModeSettings() {
+  const radios = document.querySelectorAll('input[name="appMode"]');
+  radios.forEach(r=>{r.checked = r.value === appPreferences.app_mode;});
+  const hint = document.getElementById('modeHint');
+  if(hint) hint.style.display = isSimpleMode() && !appPreferences.hint_seen ? 'block' : 'none';
+}
+
 function openGoalModal(id=null){
   editGoalId = id;
   const titleEl = document.querySelector('#goalModal .mtitle');
@@ -1841,6 +2108,11 @@ function saveGoal(){
 function renderGoalVoteBar() {
   const el = document.getElementById('goalVoteBar');
   if(!el) return;
+  if(isSimpleMode()){
+    el.style.display = 'none';
+    return;
+  }
+  el.style.display = '';
   const votedGoal = getTodayVotedGoal();
   if(votedGoal){
     el.className = 'goal-vote-bar used';
@@ -1855,6 +2127,11 @@ function renderGoalHistory() {
   const wrap = document.getElementById('goalHistoryWrap');
   const el = document.getElementById('goalHistoryList');
   if(!wrap || !el) return;
+  if(isSimpleMode()){
+    wrap.style.display = 'none';
+    el.innerHTML = '';
+    return;
+  }
   const purchasedGoals = getPurchasedGoals();
   if(!purchasedGoals.length){
     wrap.style.display = 'none';
@@ -1913,6 +2190,7 @@ function renderGoals() {
   if(!el) return;
   const activeGoals = getActiveGoals();
   const usedGoal = getTodayVotedGoal();
+  const simple = isSimpleMode();
   renderGoalVoteBar();
   renderGoalHistory();
   if(!activeGoals.length){
@@ -1926,13 +2204,19 @@ function renderGoals() {
     const tokenUsedByOther = usedGoal && usedGoal.id!==g.id;
     const canVote = !usedGoal;
     const lastVoteLabel = g.last_voted_at ? new Date(g.last_voted_at).toLocaleDateString('id-ID', {day:'2-digit', month:'short'}) : 'Belum pernah';
-    const chips = [
+    const chips = simple ? '' : [
       `<span class="goal-chip vote">${g.vote_count||0} vote</span>`,
       g.vote_streak>=2 ? `<span class="goal-chip hot">Streak ${g.vote_streak} hari</span>` : '',
       g.last_voted_at ? `<span class="goal-chip">Terakhir ${lastVoteLabel}</span>` : ''
     ].filter(Boolean).join('');
-    const softSignal = g.vote_count>=3 ? '<div class="goal-soft-signal">Ini sering kamu pilih.</div>' : '';
+    const softSignal = !simple && g.vote_count>=3 ? '<div class="goal-soft-signal">Ini sering kamu pilih.</div>' : '';
     const voteLabel = votedToday ? 'Sudah kamu pilih hari ini' : (tokenUsedByOther ? 'Token hari ini habis' : 'Vote Hari Ini');
+    const extraActions = simple ? '' : `<div class="goal-meta">${chips}</div>
+      ${softSignal}
+      <div class="goal-actions">
+        <button class="goal-act-btn vote" onclick="voteGoal('${g.id}')" ${canVote?'':'disabled'}>${voteLabel}</button>
+        <button class="goal-act-btn buy" onclick="markGoalPurchased('${g.id}')">Saya Sudah Beli</button>
+      </div>`;
     return `<div class="goal-card">
       <div class="goal-hd">
         <div class="goal-name">${icon} ${esc(g.name)}</div>
@@ -1945,13 +2229,129 @@ function renderGoals() {
       </div>
       <div class="prog-track"><div class="prog-fill" style="width:${pct}%"></div></div>
       <div class="goal-ft"><span>Terkumpul: ${fmt(g.terkumpul)}</span><span>Target: ${fmt(g.target)}</span></div>
-      <div class="goal-meta">${chips}</div>
-      ${softSignal}
-      <div class="goal-actions">
-        <button class="goal-act-btn vote" onclick="voteGoal('${g.id}')" ${canVote?'':'disabled'}>${voteLabel}</button>
-        <button class="goal-act-btn buy" onclick="markGoalPurchased('${g.id}')">Saya Sudah Beli</button>
-      </div>
+      ${extraActions}
       ${pct>=100?'<div style="font-size:12px;color:var(--green);font-weight:700;margin-top:6px;text-align:center;">Target tercapai!</div>':''}
+    </div>`;
+  }).join('');
+}
+
+function openWajibModal(id=null) {
+  editWajibId = id;
+  const titleEl = document.querySelector('#wajibModal .mtitle');
+  const item = id ? wajibFunds.find(x=>x.id===id) : null;
+  if(titleEl) titleEl.textContent = item ? 'Edit Dana Wajib' : 'Tambah Dana Wajib';
+  document.getElementById('wajibName').value = item ? item.name : '';
+  document.getElementById('wajibAmt').value = item ? item.target.toLocaleString('id-ID') : '';
+  document.getElementById('wajibAmtHint').textContent = item ? '= '+fmt(item.target) : '';
+  document.getElementById('wajibDeadline').value = item ? item.deadline : '';
+  openModal('wajibModal');
+}
+
+function saveWajib() {
+  const name = document.getElementById('wajibName').value.trim();
+  const target = parseA(document.getElementById('wajibAmt').value);
+  const deadline = document.getElementById('wajibDeadline').value;
+  if(!name) return alert('Nama dana wajib wajib diisi!');
+  if(!target) return alert('Target dana wajib wajib diisi!');
+  if(!deadline) return alert('Deadline dana wajib wajib diisi!');
+  if(editWajibId){
+    const item = wajibFunds.find(x=>x.id===editWajibId);
+    if(item){
+      item.name = name;
+      item.target = target;
+      item.deadline = deadline;
+      if(item.terkumpul>target) item.terkumpul = target;
+    }
+  } else {
+    wajibFunds.push(normalizeWajibFund({id:'w'+Date.now(), name, target, deadline, terkumpul:0}));
+  }
+  save();
+  renderWajibFunds();
+  renderDashboard();
+  closeModal('wajibModal');
+}
+
+function openWajibSisihModal(id) {
+  const item = wajibFunds.find(x=>x.id===id);
+  if(!item) return;
+  const remaining = getWajibRemaining(item);
+  document.getElementById('wajibSisihId').value = item.id;
+  document.getElementById('wajibSisihAmt').value = '';
+  document.getElementById('wajibSisihAmtHint').textContent = '';
+  document.getElementById('wajibSisihTitle').textContent = `Sisihkan untuk ${item.name}`;
+  document.getElementById('wajibSisihInfo').textContent = `Sisa kebutuhan ${fmt(remaining)}. Rekomendasi bulan ini ${fmt(getWajibMonthlyRecommendation(item))}.`;
+  openModal('wajibSisihModal');
+}
+
+function saveWajibSisih() {
+  const id = document.getElementById('wajibSisihId').value;
+  const amount = parseA(document.getElementById('wajibSisihAmt').value);
+  const item = wajibFunds.find(x=>x.id===id);
+  if(!item) return;
+  if(!amount) return alert('Nominal wajib diisi!');
+  const saldoTersedia = getRealBalance() - getReservedTotal();
+  if(amount>saldoTersedia) return alert('Saldo tersedia tidak cukup.');
+  const remaining = getWajibRemaining(item);
+  if(amount>remaining) return alert('Nominal melebihi sisa dana wajib.');
+  item.terkumpul += amount;
+  save();
+  renderWajibFunds();
+  renderDashboard();
+  closeModal('wajibSisihModal');
+}
+
+function delWajib(id) {
+  const item = wajibFunds.find(x=>x.id===id);
+  if(!item) return;
+  askConfirm(`Hapus dana wajib "${item.name}"?`,()=>{
+    wajibFunds = wajibFunds.filter(x=>x.id!==id);
+    save();
+    renderWajibFunds();
+    renderDashboard();
+  },{title:'Hapus Dana Wajib',okText:'Hapus',danger:true});
+}
+
+function renderWajibFunds() {
+  const el = document.getElementById('wajibList');
+  if(!el) return;
+  const items = getSortedWajibFunds();
+  if(!items.length){
+    el.innerHTML = '<div class="empty">Belum ada dana wajib. Cocok untuk biaya wisuda, skripsi, riset, atau dana darurat akademik.</div>';
+    return;
+  }
+  el.innerHTML = items.map(item=>{
+    const pct = item.target>0 ? Math.min(100, Math.round((item.terkumpul||0)/item.target*100)) : 0;
+    const remaining = getWajibRemaining(item);
+    const monthly = getWajibMonthlyRecommendation(item);
+    const months = getMonthsRemaining(item.deadline);
+    const overdue = isWajibOverdue(item);
+    const deadlineCls = overdue ? 'wajib-deadline overdue' : 'wajib-deadline';
+    return `<div class="wajib-card">
+      <div class="wajib-head">
+        <div style="font-size:22px;line-height:1;">🎓</div>
+        <div style="flex:1;min-width:0;">
+          <div class="wajib-name">${esc(item.name)}</div>
+          <div class="${deadlineCls}">Dipakai ${getWajibDeadlineLabel(item.deadline)}${overdue?' · Terlewat':''}</div>
+        </div>
+        <div class="goal-head-actions">
+          <button class="gbtn add" onclick="openWajibModal('${item.id}')" title="Edit">✏️</button>
+          <button class="gbtn add" onclick="openWajibSisihModal('${item.id}')" title="Sisihkan">➕</button>
+          <button class="gbtn del" onclick="delWajib('${item.id}')" title="Hapus">🗑️</button>
+        </div>
+      </div>
+      <div class="prog-track"><div class="prog-fill" style="width:${pct}%"></div></div>
+      <div class="goal-ft"><span>Terkumpul: ${fmt(item.terkumpul)}</span><span>Target: ${fmt(item.target)}</span></div>
+      <div style="margin-top:8px;">${overdue?'<span class="wajib-chip overdue">Lewat Deadline</span>':`<span class="wajib-chip">${months} bulan lagi</span>`}</div>
+      <div class="wajib-meta">
+        <div class="wajib-mini">
+          <div class="wajib-mini-label">Sisa</div>
+          <div class="wajib-mini-value">${fmt(remaining)}</div>
+        </div>
+        <div class="wajib-mini">
+          <div class="wajib-mini-label">Rekom / Bulan</div>
+          <div class="wajib-mini-value">${fmt(monthly)}</div>
+        </div>
+      </div>
     </div>`;
   }).join('');
 }
@@ -2007,7 +2407,7 @@ function getTimelineItems(filter='all'){
     return items;
   });
 
-  return [...txItems, ...hpItems].sort((a,b)=>new Date(b.date)-new Date(a.date));
+  return [...txItems, ...(isSimpleMode() ? [] : hpItems)].sort((a,b)=>new Date(b.date)-new Date(a.date));
 }
 
 function formatTimelineItem(item){
@@ -2196,11 +2596,18 @@ function handleImportFileV2(e) {
         txs = data.txs;
         cats = data.cats;
         goals = Array.isArray(data.goals) ? data.goals.map(normalizeGoal) : [];
+        wajibFunds = Array.isArray(data.wajibFunds) ? data.wajibFunds.map(normalizeWajibFund) : [];
         hp = data.hp;
         sakuTxs = Array.isArray(data.sakuTxs) ? data.sakuTxs : [];
         saldoAwal = parseFloat(data.saldoAwal||0);
         lastTx = data.lastTx || '';
         targetSaldo = parseFloat(data.targetSaldo||0);
+        if(data.appPreferences && (data.appPreferences.app_mode==='simple' || data.appPreferences.app_mode==='full')) {
+          appPreferences = {
+            app_mode: data.appPreferences.app_mode,
+            hint_seen: !!data.appPreferences.hint_seen
+          };
+        }
         const theme = data.theme === 'dark' ? 'dark' : 'light';
         document.documentElement.setAttribute('data-theme', theme);
         document.getElementById('themeBtn').textContent = theme==='dark'?'â˜€ï¸':'ðŸŒ™';
@@ -2217,7 +2624,9 @@ function handleImportFileV2(e) {
         renderSaldo();
         renderSaku();
         renderTargetSaldo();
+        renderWajibFunds();
         updateFab();
+        applyAppMode();
         alert('Import berhasil.');
       },{title:'Import Data',okText:'Import',danger:true});
     } catch(err) {
@@ -2246,6 +2655,7 @@ renderHP();
 renderSaldo();
 renderSaku();
 renderTargetSaldo();
+applyAppMode();
 hideSplash();
 </script>
 </body>
