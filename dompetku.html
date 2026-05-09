@@ -220,6 +220,18 @@ body.splash-lock{overflow:hidden;}
 /* FAB */
 .fab{position:fixed;bottom:calc(88px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);width:58px;height:58px;border-radius:18px;background:linear-gradient(135deg,#2c7a7b,#38b2ac);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 24px rgba(44,122,123,0.45);font-size:26px;color:white;z-index:200;}
 .fab:active{transform:translateX(-50%) scale(0.92);}
+.fab-hint{position:fixed;bottom:calc(154px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);background:var(--card);color:var(--text2);border:1px solid var(--border);box-shadow:var(--shadow);border-radius:999px;padding:8px 12px;font-size:11px;font-weight:800;z-index:190;white-space:nowrap;}
+.action-sheet{background:var(--card);width:100%;max-width:430px;border-radius:24px 24px 0 0;padding:18px 18px 30px;animation:slideUp .25s ease;max-height:88vh;overflow-y:auto;}
+.action-sheet-title{font-size:18px;font-weight:800;}
+.action-sheet-sub{font-size:12px;color:var(--text2);margin-top:4px;line-height:1.45;}
+.action-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px;}
+.action-btn{border:none;border-radius:16px;padding:14px 12px;background:var(--card2);color:var(--text);text-align:left;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;border:1px solid var(--border);}
+.action-btn.primary{background:linear-gradient(135deg,var(--teal),#38b2ac);color:#fff;border-color:transparent;box-shadow:0 8px 18px rgba(44,122,123,.22);}
+.action-kicker{font-size:10px;font-weight:800;opacity:.82;text-transform:uppercase;letter-spacing:.4px;}
+.action-label{font-size:13px;font-weight:800;margin-top:6px;}
+.action-desc{font-size:11px;line-height:1.45;color:var(--text2);margin-top:4px;}
+.action-btn.primary .action-desc{color:rgba(255,255,255,.9);}
+.surface-secondary-action{display:none !important;}
 /* NAV */
 .bottom-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;background:var(--card);border-top:1px solid var(--border);display:flex;padding:8px 6px calc(12px + env(safe-area-inset-bottom,0px));z-index:100;box-shadow:0 -4px 16px rgba(0,0,0,0.08);}
 .nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;padding:6px 2px;min-height:54px;border-radius:12px;}
@@ -327,7 +339,7 @@ select.finp{appearance:none;}
   <div class="sec">
     <div class="sec-hd">
       <span class="sec-title">🎯 Goals Tabungan</span>
-      <button class="link-btn" onclick="openGoalModal()">+ Tambah</button>
+      <button class="link-btn surface-secondary-action" id="goalQuickAddBtn" onclick="openGoalModal()">+ Tambah</button>
     </div>
     <div class="goal-vote-bar" id="goalVoteBar">Vote harian belum aktif.</div>
     <div class="goals-list" id="goalsList"><div class="empty">Belum ada goals</div></div>
@@ -340,7 +352,7 @@ select.finp{appearance:none;}
   <div class="sec">
     <div class="sec-hd">
       <span class="sec-title">Dana Wajib</span>
-      <button class="link-btn" onclick="openWajibModal()">+ Tambah</button>
+      <button class="link-btn surface-secondary-action" id="wajibQuickAddBtn" onclick="openWajibModal()">+ Tambah</button>
     </div>
     <div class="wajib-list" id="wajibList"><div class="empty">Belum ada dana wajib</div></div>
   </div>
@@ -384,7 +396,7 @@ select.finp{appearance:none;}
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
       <div id="hpSum" style="font-size:12px;color:var(--text2);font-weight:600;"></div>
-      <button class="link-btn" onclick="openHPModal()">+ Tambah</button>
+      <button class="link-btn surface-secondary-action" id="hpQuickAddBtn" onclick="openHPModal()">+ Tambah</button>
     </div>
     <div class="hp-list" id="hpList"></div>
   </div>
@@ -460,13 +472,24 @@ select.finp{appearance:none;}
 </div>
 </div>
 
-<button class="fab" id="mainFab" onclick="handleMainFab()" title="Tambah transaksi">＋</button>
+<button class="fab" id="mainFab" onclick="handleMainFab()" title="Pusat aksi">＋</button>
+<div class="fab-hint" id="fabHint">1 tombol untuk semua aksi utama</div>
 
 <div class="bottom-nav">
   <div class="nav-item active" onclick="switchNav('dashboard',this)"><div class="nav-icon">🏠</div><div class="nav-label">Beranda</div></div>
   <div class="nav-item" onclick="switchNav('transaksi',this)"><div class="nav-icon">📋</div><div class="nav-label">Transaksi</div></div>
   <div class="nav-item" onclick="switchNav('hutang',this)"><div class="nav-icon">🤝</div><div class="nav-label">Hutang</div></div>
   <div class="nav-item" onclick="switchNav('kelola',this)"><div class="nav-icon">⚙️</div><div class="nav-label">Kelola</div></div>
+</div>
+
+<div class="overlay" id="actionHubModal">
+  <div class="action-sheet">
+    <div class="mhandle"></div>
+    <div class="action-sheet-title">Pusat Aksi</div>
+    <div class="action-sheet-sub" id="actionHubSub">Pilih aksi yang kamu butuhkan. Permukaan app kita buat tetap simpel, tapi kekuatannya tetap lengkap.</div>
+    <div class="action-grid" id="actionHubGrid"></div>
+    <button class="btn-cancel" onclick="closeModal('actionHubModal')">Tutup</button>
+  </div>
 </div>
 
 <!-- MODAL TRANSAKSI -->
@@ -724,8 +747,32 @@ select.finp{appearance:none;}
 
 <script>
 // DATA
-let txs = JSON.parse(localStorage.getItem('dk_txs')||'[]');
-let cats = JSON.parse(localStorage.getItem('dk_cats')||'null') || [
+const memoryStorage = {};
+function storageGet(key, fallback=null) {
+  try {
+    const value = window.localStorage.getItem(key);
+    return value ?? fallback;
+  } catch(_) {
+    return Object.prototype.hasOwnProperty.call(memoryStorage, key) ? memoryStorage[key] : fallback;
+  }
+}
+function storageSet(key, value) {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch(_) {
+    memoryStorage[key] = String(value);
+  }
+}
+function storageRemove(key) {
+  try {
+    window.localStorage.removeItem(key);
+  } catch(_) {
+    delete memoryStorage[key];
+  }
+}
+
+let txs = JSON.parse(storageGet('dk_txs','[]')||'[]');
+let cats = JSON.parse(storageGet('dk_cats','null')||'null') || [
   {id:'c1',name:'Makan',emoji:'🍔',type:'expense'},{id:'c2',name:'Transport',emoji:'🚗',type:'expense'},
   {id:'c3',name:'Nongkrong',emoji:'☕',type:'expense'},{id:'c4',name:'Belanja',emoji:'🛒',type:'expense'},
   {id:'c5',name:'Pulsa',emoji:'📱',type:'expense'},{id:'c6',name:'Hiburan',emoji:'🎮',type:'expense'},
@@ -733,15 +780,15 @@ let cats = JSON.parse(localStorage.getItem('dk_cats')||'null') || [
   {id:'c9',name:'Kiriman Ortu',emoji:'💝',type:'income'},{id:'c10',name:'Beasiswa',emoji:'🎓',type:'income'},
   {id:'c11',name:'Freelance',emoji:'💻',type:'income'},{id:'c12',name:'Lain-lain',emoji:'💰',type:'income'},
 ];
-let goals = JSON.parse(localStorage.getItem('dk_goals')||'[]');
-let wajibFunds = JSON.parse(localStorage.getItem('dk_wajibFunds')||'[]');
-let hp = JSON.parse(localStorage.getItem('dk_hp')||'[]');
-let sakuTxs = JSON.parse(localStorage.getItem('dk_sakuTxs')||'[]');
-let saldoAwal = parseFloat(localStorage.getItem('dk_saldo')||'0');
-let lastTx = localStorage.getItem('dk_lastTx');
-let savedTheme = localStorage.getItem('dk_theme') || 'light';
-let savedThemeMode = localStorage.getItem('dk_themeMode') || 'auto';
-let targetSaldo = parseFloat(localStorage.getItem('dk_targetSaldo')||'0');
+let goals = JSON.parse(storageGet('dk_goals','[]')||'[]');
+let wajibFunds = JSON.parse(storageGet('dk_wajibFunds','[]')||'[]');
+let hp = JSON.parse(storageGet('dk_hp','[]')||'[]');
+let sakuTxs = JSON.parse(storageGet('dk_sakuTxs','[]')||'[]');
+let saldoAwal = parseFloat(storageGet('dk_saldo','0')||'0');
+let lastTx = storageGet('dk_lastTx', null);
+let savedTheme = storageGet('dk_theme','light') || 'light';
+let savedThemeMode = storageGet('dk_themeMode','auto') || 'auto';
+let targetSaldo = parseFloat(storageGet('dk_targetSaldo','0')||'0');
 let curType = 'expense', selCat = null, editCatId = null, curMonth = new Date(), curHP = 'piutang', currentPage = 'dashboard';
 let confirmResolver = null;
 let themeTimer = null;
@@ -793,6 +840,25 @@ function normalizeWajibFund(item={}) {
 
 wajibFunds = Array.isArray(wajibFunds) ? wajibFunds.map(normalizeWajibFund) : [];
 
+function normalizeHPItem(item={}) {
+  return {
+    id: item.id || ('hp'+Date.now()+Math.floor(Math.random()*1000)),
+    type: item.type === 'hutang' ? 'hutang' : 'piutang',
+    name: item.name || 'Catatan',
+    amount: parseFloat(item.amount||0),
+    note: item.note || '',
+    date: item.date || new Date().toISOString(),
+    lunas: !!item.lunas,
+    settleState: item.settleState || 'pending',
+    tanggalLunas: item.tanggalLunas || '',
+    createTxId: item.createTxId || null,
+    settleTxId: item.settleTxId || null,
+    transferTxId: item.transferTxId || null
+  };
+}
+
+hp = Array.isArray(hp) ? hp.map(normalizeHPItem) : [];
+
 function getReservedGoalTotal() {
   return goals.filter(g=>!g.is_purchased).reduce((s,g)=>s+(g.terkumpul||0),0);
 }
@@ -817,6 +883,33 @@ function getSakuBalance() {
 
 function getIncomeCatId() {
   return cats.find(c=>c.type==='income' && /lain/i.test(c.name))?.id || cats.find(c=>c.type==='income')?.id || 'c12';
+}
+
+function getExpenseCatId() {
+  return cats.find(c=>c.type==='expense' && /lain/i.test(c.name))?.id || cats.find(c=>c.type==='expense')?.id || 'c8';
+}
+
+function isInternalTransferTx(tx={}) {
+  return tx.source === 'internal_transfer';
+}
+
+function isSystemTx(tx={}) {
+  return !!tx.source && tx.source !== 'manual';
+}
+
+function addSystemTx({type, amount, catId, note='', source='system', sourceId=null, date=null}) {
+  const tx = {
+    id:'t'+Date.now()+Math.floor(Math.random()*1000),
+    type,
+    amount,
+    catId,
+    note,
+    date: date || new Date().toISOString(),
+    source,
+    sourceId
+  };
+  txs.push(tx);
+  return tx;
 }
 
 function addSakuTx(type, amount, note, meta={}) {
@@ -949,7 +1042,7 @@ function hasExistingInstallationData() {
 
 function loadAppPreferences() {
   try {
-    const parsed = JSON.parse(localStorage.getItem(APP_PREFS_KEY) || 'null');
+    const parsed = JSON.parse(storageGet(APP_PREFS_KEY, 'null') || 'null');
     if(parsed && (parsed.app_mode==='simple' || parsed.app_mode==='full')) {
       return {
         app_mode: parsed.app_mode,
@@ -967,7 +1060,7 @@ appPreferences = loadAppPreferences();
 saveAppPreferences();
 
 function saveAppPreferences() {
-  localStorage.setItem(APP_PREFS_KEY, JSON.stringify(appPreferences));
+  storageSet(APP_PREFS_KEY, JSON.stringify(appPreferences));
 }
 
 function isSimpleMode() {
@@ -1030,18 +1123,19 @@ function fmtIn(el, hintId) {
 }
 
 function save() {
-  localStorage.setItem('dk_txs', JSON.stringify(txs));
-  localStorage.setItem('dk_cats', JSON.stringify(cats));
-  localStorage.setItem('dk_goals', JSON.stringify(goals));
-  localStorage.setItem('dk_wajibFunds', JSON.stringify(wajibFunds));
-  localStorage.setItem('dk_hp', JSON.stringify(hp));
-  localStorage.setItem('dk_sakuTxs', JSON.stringify(sakuTxs));
-  localStorage.setItem('dk_saldo', saldoAwal);
-  localStorage.setItem('dk_targetSaldo', targetSaldo);
-  localStorage.setItem('dk_themeMode', savedThemeMode);
-  localStorage.setItem('dk_theme', document.documentElement.getAttribute('data-theme')||'light');
+  storageSet('dk_txs', JSON.stringify(txs));
+  storageSet('dk_cats', JSON.stringify(cats));
+  storageSet('dk_goals', JSON.stringify(goals));
+  storageSet('dk_wajibFunds', JSON.stringify(wajibFunds));
+  storageSet('dk_hp', JSON.stringify(hp));
+  storageSet('dk_sakuTxs', JSON.stringify(sakuTxs));
+  storageSet('dk_saldo', saldoAwal);
+  storageSet('dk_targetSaldo', targetSaldo);
+  storageSet('dk_themeMode', savedThemeMode);
+  storageSet('dk_theme', document.documentElement.getAttribute('data-theme')||'light');
   saveAppPreferences();
-  if(lastTx) localStorage.setItem('dk_lastTx', lastTx);
+  if(lastTx) storageSet('dk_lastTx', lastTx);
+  else storageRemove('dk_lastTx');
 }
 
 function getMonthTxs(m) {
@@ -1072,7 +1166,7 @@ function updateThemeButton() {
 
 function applyTheme(theme, persist=true) {
   document.documentElement.setAttribute('data-theme', theme);
-  if(persist) localStorage.setItem('dk_theme', theme);
+  if(persist) storageSet('dk_theme', theme);
   updateThemeButton();
 }
 
@@ -1083,7 +1177,7 @@ function syncThemeMode() {
 
 function enableAutoTheme(silent=false) {
   savedThemeMode = 'auto';
-  localStorage.setItem('dk_themeMode', savedThemeMode);
+  storageSet('dk_themeMode', savedThemeMode);
   applyTheme(getAutoTheme(), false);
   if(!silent) alert('Tema otomatis aktif.');
 }
@@ -1100,7 +1194,7 @@ function toggleTheme() {
   const dark = h.getAttribute('data-theme')==='dark';
   h.setAttribute('data-theme', dark?'light':'dark');
   document.getElementById('themeBtn').textContent = dark?'🌙':'☀️';
-  localStorage.setItem('dk_theme', dark?'light':'dark');
+  storageSet('dk_theme', dark?'light':'dark');
 }
 
 function updateFab() {
@@ -1204,7 +1298,7 @@ function checkAlert() {
 function renderDashboard() {
   const now = new Date();
   const mtx = getMonthTxs(now);
-  const inc = mtx.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+  const inc = mtx.filter(t=>t.type==='income' && !isInternalTransferTx(t)).reduce((s,t)=>s+t.amount,0);
   const exp = mtx.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
 
   const saldoTotal = getRealBalance();
@@ -1403,7 +1497,7 @@ function renderTargetSaldo(){document.getElementById('targetSaldoVal').textConte
 function resetSaldo(){
   askConfirm('Reset saldo ke nol? Transaksi tetap ada.',()=>{
     saldoAwal=0;
-    localStorage.setItem('dk_saldo','0');
+    storageSet('dk_saldo','0');
     save();renderSaldo();renderTargetSaldo();renderDashboard();
   },{title:'Reset Saldo',okText:'Reset',danger:true});
 }
@@ -1455,6 +1549,8 @@ function renderTxList(){
 }
 function changeMonth(d){curMonth=new Date(curMonth.getFullYear(),curMonth.getMonth()+d,1);renderTxList();}
 function delTx(id){
+  const target = txs.find(t=>t.id===id);
+  if(target && isSystemTx(target)) return alert('Transaksi sistem tidak bisa dihapus dari menu ini.');
   askConfirm('Hapus transaksi ini?',()=>{
     txs=txs.filter(t=>t.id!==id);
     save();renderTxList();renderDashboard();
@@ -1462,6 +1558,7 @@ function delTx(id){
 }
 function openEditTx(id){
   const t=txs.find(x=>x.id===id);if(!t)return;
+  if(isSystemTx(t)) return alert('Transaksi sistem tidak bisa diedit dari menu ini.');
   document.getElementById('txModalTitle').textContent='Edit Transaksi';
   document.getElementById('txEditId').value=id;
   document.getElementById('txAmt').value=t.amount.toLocaleString('id-ID');
@@ -1475,7 +1572,7 @@ function openEditTx(id){
 function renderStats(){
   const now=new Date();const months=[];
   for(let i=5;i>=0;i--)months.push(new Date(now.getFullYear(),now.getMonth()-i,1));
-  const data=months.map(m=>{const tx=getMonthTxs(m);return{label:MN[m.getMonth()],inc:tx.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0),exp:tx.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0)};});
+  const data=months.map(m=>{const tx=getMonthTxs(m);return{label:MN[m.getMonth()],inc:tx.filter(t=>t.type==='income' && !isInternalTransferTx(t)).reduce((s,t)=>s+t.amount,0),exp:tx.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0)};});
   const max=Math.max(...data.map(d=>Math.max(d.inc,d.exp)),1);
   document.getElementById('barChart').innerHTML=data.map(d=>`
     <div class="bar-group">
@@ -1521,7 +1618,7 @@ function saveTx(){
   const note=document.getElementById('txNote').value.trim();
   const date=document.getElementById('txDate').value||new Date().toISOString().split('T')[0];
   const editId=document.getElementById('txEditId').value;
-  if(editId){const t=txs.find(x=>x.id===editId);if(t){const prevTime=(new Date(t.date).toTimeString()||'00:00:00').slice(0,8);t.type=curType;t.amount=a;t.catId=selCat;t.note=note;t.date=new Date(date+'T'+prevTime).toISOString();}}
+  if(editId){const t=txs.find(x=>x.id===editId);if(t){if(isSystemTx(t)) return alert('Transaksi sistem tidak bisa diedit.');const prevTime=(new Date(t.date).toTimeString()||'00:00:00').slice(0,8);t.type=curType;t.amount=a;t.catId=selCat;t.note=note;t.date=new Date(date+'T'+prevTime).toISOString();}}
   else{txs.push({id:'t'+Date.now(),type:curType,amount:a,catId:selCat,note,date:new Date(date+'T'+new Date().toTimeString().slice(0,8)).toISOString()});lastTx=new Date().toISOString();}
   save();closeModal('txModal');renderDashboard();renderTxList();
 }
@@ -1556,16 +1653,22 @@ function renderDetailList() {
   }).join('');
 }
 function delTxDetail(id) {
+  const target = txs.find(t=>t.id===id);
+  if(target && isSystemTx(target)) return alert('Transaksi sistem tidak bisa dihapus dari menu ini.');
   askConfirm('Hapus transaksi ini?',()=>{
     txs = txs.filter(t=>t.id!==id);
     save();renderDashboard();renderTxList();renderDetailList();
   },{title:'Hapus Transaksi',okText:'Hapus',danger:true});
 }
 function hapusSemua() {
-  const label = curDetailFilter==='all'?'semua transaksi':curDetailFilter==='income'?'semua pemasukan':'semua pengeluaran';
-  askConfirm(`Hapus ${label}? Saldo akan berubah.`,()=>{
-    if(curDetailFilter==='all') txs=[];
-    else txs=txs.filter(t=>t.type!==curDetailFilter);
+  const label = curDetailFilter==='all'?'semua transaksi manual':curDetailFilter==='income'?'semua pemasukan manual':'semua pengeluaran manual';
+  const removable = curDetailFilter==='all'
+    ? txs.filter(t=>!isSystemTx(t))
+    : txs.filter(t=>t.type===curDetailFilter && !isSystemTx(t));
+  if(!removable.length) return alert('Tidak ada transaksi manual yang bisa dihapus pada tampilan ini.');
+  askConfirm(`Hapus ${label}? Transaksi sistem akan tetap aman.`,()=>{
+    const removableIds = new Set(removable.map(t=>t.id));
+    txs = txs.filter(t=>!removableIds.has(t.id));
     save();renderDashboard();renderTxList();renderDetailList();
   },{title:'Hapus Data',okText:'Hapus',danger:true});
 }
@@ -1647,7 +1750,7 @@ function handleImportFileV2(e) {
         txs = data.txs;
         cats = data.cats;
         goals = data.goals;
-        hp = data.hp;
+        hp = Array.isArray(data.hp) ? data.hp.map(normalizeHPItem) : [];
         sakuTxs = Array.isArray(data.sakuTxs) ? data.sakuTxs : [];
         saldoAwal = parseFloat(data.saldoAwal||0);
         lastTx = data.lastTx || '';
@@ -1656,7 +1759,7 @@ function handleImportFileV2(e) {
         document.getElementById('themeBtn').textContent = theme==='dark'?'☀️':'🌙';
         savedTheme = data.theme === 'dark' ? 'dark' : 'light';
         savedThemeMode = data.themeMode === 'manual' ? 'manual' : 'auto';
-        localStorage.setItem('dk_themeMode', savedThemeMode);
+        storageSet('dk_themeMode', savedThemeMode);
         syncThemeMode();
         save();
         renderDashboard();
@@ -1774,17 +1877,20 @@ function saveTransferSaku(amountOverride=null, noteOverride='', meta={}) {
   if(!amount) return alert('Nominal wajib diisi!');
   if(amount>getSakuBalance()) return alert('Saldo saku tidak cukup.');
   addSakuTx('out', amount, note, {source:meta.source||'transfer', sourceId:meta.sourceId||null});
-  txs.push({
-    id:'t'+Date.now()+Math.floor(Math.random()*1000),
+  const bankTx = addSystemTx({
     type:'income',
     amount,
     catId:getIncomeCatId(),
     note,
-    date:new Date().toISOString()
+    source:'internal_transfer',
+    sourceId:meta.sourceId||null
   });
   if(meta.sourceId){
     const h = hp.find(x=>x.id===meta.sourceId);
-    if(h) h.settleState = 'banked';
+    if(h) {
+      h.settleState = 'banked';
+      h.transferTxId = bankTx.id;
+    }
   }
   lastTx = new Date().toISOString();
   save();
@@ -1834,8 +1940,34 @@ function saveHP(){
   const note=document.getElementById('hpNote').value.trim();
   if(!n)return alert('Nama wajib!');
   if(!a)return alert('Nominal wajib!');
-  hp.push({id:'hp'+Date.now(),type:curHP,name:n,amount:a,note,date:new Date().toISOString(),lunas:false,settleState:'pending'});
-  save();renderHP();closeModal('hpModal');
+  if(curHP==='piutang'){
+    const saldoTersedia = getRealBalance() - getReservedTotal();
+    if(a>saldoTersedia) return alert('Saldo tersedia tidak cukup untuk membuat piutang ini.');
+  }
+  const hpId = 'hp'+Date.now();
+  let createTx = null;
+  if(curHP==='piutang'){
+    createTx = addSystemTx({
+      type:'expense',
+      amount:a,
+      catId:getExpenseCatId(),
+      note: note || `Piutang ke ${n}`,
+      source:'hp_create_piutang',
+      sourceId:hpId
+    });
+  } else {
+    createTx = addSystemTx({
+      type:'income',
+      amount:a,
+      catId:getIncomeCatId(),
+      note: note || `Dana hutang dari ${n}`,
+      source:'hp_create_hutang',
+      sourceId:hpId
+    });
+  }
+  hp.push({id:hpId,type:curHP,name:n,amount:a,note,date:new Date().toISOString(),lunas:false,settleState:'pending',createTxId:createTx?.id||null});
+  lastTx = new Date().toISOString();
+  save();renderHP();renderDashboard();renderTxList();closeModal('hpModal');
 }
 
 function tandaiLunas(id){
@@ -1850,26 +1982,33 @@ function tandaiLunas(id){
       h.settleState='cash';
       h.tanggalLunas=new Date().toISOString();
       addSakuTx('in', h.amount, `Pelunasan piutang ${h.name}`, {source:'hp_lunas', sourceId:h.id});
+      lastTx = new Date().toISOString();
       renderSaku();
       renderDashboard();
     } else {
       h.lunas=true;
       h.tanggalLunas=new Date().toISOString();
+      const settleTx = addSystemTx({
+        type:'expense',
+        amount:h.amount,
+        catId:getExpenseCatId(),
+        note:h.note || `Pelunasan hutang ke ${h.name}`,
+        source:'hp_settle_hutang',
+        sourceId:h.id
+      });
+      h.settleTxId = settleTx.id;
+      lastTx = new Date().toISOString();
     }
-    save();renderHP();
+    save();renderHP();renderTxList();renderDashboard();
   },{title:'Tandai Lunas',okText:h.type==='piutang'?'Masuk Saku':'Lunaskan'});
 }
 
 function delHP(id){
   askConfirm('Hapus catatan hutang/piutang ini?',()=>{
-    const target = hp.find(h=>h.id===id);
-    if(target && target.type==='piutang' && target.settleState==='cash'){
-      sakuTxs = sakuTxs.filter(t=>t.sourceId!==id);
-      renderSaku();
-      renderDashboard();
-    }
+    sakuTxs = sakuTxs.filter(t=>t.sourceId!==id);
+    txs = txs.filter(t=>t.sourceId!==id);
     hp=hp.filter(h=>h.id!==id);
-    save();renderHP();
+    save();renderHP();renderSaku();renderDashboard();renderTxList();renderDetailList();
   },{title:'Hapus Catatan',okText:'Hapus',danger:true});
 }
 
@@ -2368,7 +2507,7 @@ function getRunningBalanceById(id){
 
 function getTimelineItems(filter='all'){
   const txItems = txs
-    .filter(t=>filter==='all' || t.type===filter)
+    .filter(t=>(filter==='all' || t.type===filter) && (filter==='all' || !isInternalTransferTx(t)))
     .map(t=>({
       kind:'tx',
       id:t.id,
@@ -2376,33 +2515,42 @@ function getTimelineItems(filter='all'){
       amount:t.amount,
       txType:t.type,
       note:t.note||'',
-      catId:t.catId
+      catId:t.catId,
+      source:t.source||'manual',
+      sourceId:t.sourceId||null
     }));
 
   const hpItems = hp.flatMap(h=>{
-    const items = [{
-      kind:'hp',
-      hpEvent:'created',
-      id:`hp-created-${h.id}`,
-      hpId:h.id,
-      date:h.date,
-      amount:h.amount,
-      hpType:h.type,
-      name:h.name,
-      note:h.note||''
-    }];
-    if(h.tanggalLunas){
+    const items = [];
+    if(!h.createTxId){
       items.push({
         kind:'hp',
-        hpEvent:h.type==='piutang' ? (h.settleState==='banked' ? 'banked' : 'cash') : 'paid',
-        id:`hp-lunas-${h.id}`,
+        hpEvent:'created',
+        id:`hp-created-${h.id}`,
         hpId:h.id,
-        date:h.tanggalLunas,
+        date:h.date,
         amount:h.amount,
         hpType:h.type,
         name:h.name,
         note:h.note||''
       });
+    }
+    if(h.tanggalLunas){
+      const hpEvent = h.type==='piutang' ? (h.settleState==='banked' ? 'banked' : 'cash') : 'paid';
+      const shouldShowSynthetic = (hpEvent==='cash') || (hpEvent==='banked' && !h.transferTxId) || (hpEvent==='paid' && !h.settleTxId);
+      if(shouldShowSynthetic){
+        items.push({
+          kind:'hp',
+          hpEvent,
+          id:`hp-lunas-${h.id}`,
+          hpId:h.id,
+          date:h.tanggalLunas,
+          amount:h.amount,
+          hpType:h.type,
+          name:h.name,
+          note:h.note||''
+        });
+      }
     }
     return items;
   });
@@ -2412,6 +2560,54 @@ function getTimelineItems(filter='all'){
 
 function formatTimelineItem(item){
   if(item.kind==='tx'){
+    if(item.source==='internal_transfer'){
+      return {
+        emoji:'ðŸ¦',
+        title:esc(item.note || 'Transfer Saku ke Bank'),
+        subtitle:'Perpindahan internal, bukan pemasukan baru',
+        amountText:`+${fmt(item.amount)}`,
+        amountClass:'sys',
+        meta:`Saldo saat itu: ${fmt(getRunningBalanceById(item.id))}`,
+        badge:'Transfer Internal',
+        deletable:false
+      };
+    }
+    if(item.source==='hp_create_piutang'){
+      return {
+        emoji:'ðŸ¤',
+        title:esc(item.note || 'Piutang dibuat'),
+        subtitle:'Saldo bank berkurang karena uang dipinjamkan',
+        amountText:`-${fmt(item.amount)}`,
+        amountClass:'expense',
+        meta:`Saldo saat itu: ${fmt(getRunningBalanceById(item.id))}`,
+        badge:'Piutang',
+        deletable:false
+      };
+    }
+    if(item.source==='hp_create_hutang'){
+      return {
+        emoji:'ðŸ¦',
+        title:esc(item.note || 'Dana hutang masuk'),
+        subtitle:'Saldo bank bertambah dari hutang',
+        amountText:`+${fmt(item.amount)}`,
+        amountClass:'income',
+        meta:`Saldo saat itu: ${fmt(getRunningBalanceById(item.id))}`,
+        badge:'Hutang',
+        deletable:false
+      };
+    }
+    if(item.source==='hp_settle_hutang'){
+      return {
+        emoji:'âœ…',
+        title:esc(item.note || 'Pelunasan hutang'),
+        subtitle:'Saldo bank berkurang untuk melunasi hutang',
+        amountText:`-${fmt(item.amount)}`,
+        amountClass:'expense',
+        meta:`Saldo saat itu: ${fmt(getRunningBalanceById(item.id))}`,
+        badge:'Hutang',
+        deletable:false
+      };
+    }
     const c = cats.find(x=>x.id===item.catId);
     return {
       emoji:c?.emoji||'📦',
@@ -2481,8 +2677,8 @@ function renderTxList(){
       <div class="tx-date-label">${esc(date)}</div>
       ${dayItems.map(item=>{const view=formatTimelineItem(item);return `
         <div class="tx-item" id="tx-${item.id}">
-          <div class="tx-emoji" ${item.kind==='tx' ? `onclick="openEditTx('${item.id}')"`:''}>${view.emoji}</div>
-          <div class="tx-info" ${item.kind==='tx' ? `onclick="openEditTx('${item.id}')"`:''}>
+          <div class="tx-emoji" ${(item.kind==='tx' && view.deletable) ? `onclick="openEditTx('${item.id}')"`:''}>${view.emoji}</div>
+          <div class="tx-info" ${(item.kind==='tx' && view.deletable) ? `onclick="openEditTx('${item.id}')"`:''}>
             <div class="tx-cat">${view.title}</div>
             <div class="tx-note">${view.subtitle}</div>
             ${view.badge?`<div class="tx-badge">${view.badge}</div>`:''}
@@ -2567,7 +2763,7 @@ function renderStats(){
 function toggleTheme() {
   const dark = document.documentElement.getAttribute('data-theme')==='dark';
   savedThemeMode = 'manual';
-  localStorage.setItem('dk_themeMode', savedThemeMode);
+  storageSet('dk_themeMode', savedThemeMode);
   savedTheme = dark ? 'light' : 'dark';
   applyTheme(savedTheme);
 }
@@ -2597,7 +2793,7 @@ function handleImportFileV2(e) {
         cats = data.cats;
         goals = Array.isArray(data.goals) ? data.goals.map(normalizeGoal) : [];
         wajibFunds = Array.isArray(data.wajibFunds) ? data.wajibFunds.map(normalizeWajibFund) : [];
-        hp = data.hp;
+        hp = Array.isArray(data.hp) ? data.hp.map(normalizeHPItem) : [];
         sakuTxs = Array.isArray(data.sakuTxs) ? data.sakuTxs : [];
         saldoAwal = parseFloat(data.saldoAwal||0);
         lastTx = data.lastTx || '';
@@ -2613,7 +2809,7 @@ function handleImportFileV2(e) {
         document.getElementById('themeBtn').textContent = theme==='dark'?'â˜€ï¸':'ðŸŒ™';
         savedTheme = theme;
         savedThemeMode = data.themeMode === 'manual' ? 'manual' : 'auto';
-        localStorage.setItem('dk_themeMode', savedThemeMode);
+        storageSet('dk_themeMode', savedThemeMode);
         syncThemeMode();
         save();
         renderDashboard();
@@ -2640,6 +2836,720 @@ function handleImportFileV2(e) {
 
 
 
+// Final runtime safeguards: keep the current architecture but make
+// active behavior consistent even when older duplicate functions exist.
+function normalizeCatItem(item={}) {
+  return {
+    id: item.id || ('c'+Date.now()+Math.floor(Math.random()*1000)),
+    name: item.name || 'Kategori',
+    emoji: item.emoji || '[ ]',
+    type: item.type === 'income' ? 'income' : 'expense'
+  };
+}
+
+function normalizeTxItem(tx={}) {
+  const type = tx.type === 'income' ? 'income' : 'expense';
+  const parsedDate = new Date(tx.date || Date.now());
+  return {
+    id: tx.id || ('t'+Date.now()+Math.floor(Math.random()*1000)),
+    type: type,
+    amount: Math.max(0, parseFloat(tx.amount||0)),
+    catId: tx.catId || (type === 'income' ? getIncomeCatId() : getExpenseCatId()),
+    note: tx.note || '',
+    date: Number.isNaN(parsedDate.getTime()) ? new Date().toISOString() : parsedDate.toISOString(),
+    source: tx.source || 'manual',
+    sourceId: tx.sourceId || null
+  };
+}
+
+function normalizeSakuItem(item={}) {
+  const parsedDate = new Date(item.date || Date.now());
+  return {
+    id: item.id || ('sk'+Date.now()+Math.floor(Math.random()*1000)),
+    type: item.type === 'out' ? 'out' : 'in',
+    amount: Math.max(0, parseFloat(item.amount||0)),
+    note: item.note || '',
+    date: Number.isNaN(parsedDate.getTime()) ? new Date().toISOString() : parsedDate.toISOString(),
+    source: item.source || 'manual',
+    sourceId: item.sourceId || null
+  };
+}
+
+function normalizeAppPreferences(pref) {
+  if(pref && (pref.app_mode==='simple' || pref.app_mode==='full')) {
+    return {
+      app_mode: pref.app_mode,
+      hint_seen: !!pref.hint_seen
+    };
+  }
+  return loadAppPreferences();
+}
+
+function normalizeRuntimeState() {
+  cats = Array.isArray(cats) ? cats.map(normalizeCatItem) : [];
+  txs = Array.isArray(txs) ? txs.map(normalizeTxItem) : [];
+  goals = Array.isArray(goals) ? goals.map(normalizeGoal) : [];
+  wajibFunds = Array.isArray(wajibFunds) ? wajibFunds.map(normalizeWajibFund) : [];
+  hp = Array.isArray(hp) ? hp.map(normalizeHPItem) : [];
+  sakuTxs = Array.isArray(sakuTxs) ? sakuTxs.map(normalizeSakuItem) : [];
+  saldoAwal = parseFloat(saldoAwal||0) || 0;
+  targetSaldo = parseFloat(targetSaldo||0) || 0;
+  appPreferences = normalizeAppPreferences(appPreferences);
+}
+
+function getMonthCashflow(monthDate) {
+  const monthTxs = getMonthTxs(monthDate);
+  const income = monthTxs.filter(t=>t.type==='income' && !isInternalTransferTx(t)).reduce((sum, t)=>sum+t.amount,0);
+  const expense = monthTxs.filter(t=>t.type==='expense').reduce((sum, t)=>sum+t.amount,0);
+  return {income, expense, monthTxs};
+}
+
+function refreshOpenDetailIfNeeded() {
+  const modal = document.getElementById('detailModal');
+  if(modal && modal.classList.contains('open')) renderDetailList();
+}
+
+function refreshAllViews() {
+  if(currentPage==='kelola') renderKelolaLayout();
+  renderDashboard();
+  renderTxList();
+  renderHP();
+  renderSaldo();
+  renderSaku();
+  renderTargetSaldo();
+  renderWajibFunds();
+  renderCats();
+  renderStats();
+  if(typeof renderModeSettings === 'function') renderModeSettings();
+  updateFab();
+  applyAppMode();
+  refreshOpenDetailIfNeeded();
+}
+
+function checkAlert() {
+  const banner = document.getElementById('alertBanner');
+  const now = new Date();
+  if(lastTx) {
+    const diff = Math.floor((now - new Date(lastTx)) / 86400000);
+    if(diff >= 3) {
+      banner.className = 'alert show idle';
+      banner.innerHTML = 'Sudah ' + diff + ' hari belum catat transaksi. Jangan sampai ada yang kelupaan ya.';
+      return;
+    }
+  } else if(!txs.length) {
+    banner.className = 'alert show idle';
+    banner.innerHTML = 'Yuk mulai catat keuangan kamu.';
+    return;
+  }
+  const flow = getMonthCashflow(now);
+  const ratio = flow.income>0 ? flow.expense/flow.income : 0;
+  if(ratio >= 1) {
+    banner.className = 'alert show danger';
+    banner.innerHTML = 'Pengeluaran melebihi pemasukan bulan ini.';
+  } else if(ratio >= 0.8) {
+    banner.className = 'alert show warning';
+    banner.innerHTML = 'Pengeluaran sudah ' + Math.round(ratio*100) + '% dari pemasukan bulan ini.';
+  } else {
+    banner.classList.remove('show');
+  }
+}
+
+function renderDashboard() {
+  const now = new Date();
+  const flow = getMonthCashflow(now);
+  const saldoTotal = getRealBalance();
+  const saldoSaku = getSakuBalance();
+  const danaGoal = getReservedGoalTotal();
+  const danaWajib = getReservedWajibTotal();
+  const danaTersisih = danaGoal + danaWajib;
+  const saldoTersedia = saldoTotal - danaTersisih;
+  const selisihAwal = saldoTotal - saldoAwal;
+  const targetAktif = targetSaldo>0 ? targetSaldo : saldoAwal;
+  const balEl = document.getElementById('balAmt');
+  if(balEl) {
+    balEl.textContent = fmtS(saldoTersedia);
+    balEl.style.color = saldoTersedia<0 ? '#ff6b6b' : 'white';
+  }
+  const balSub = document.getElementById('balSub');
+  if(balSub) {
+    balSub.textContent = MF[now.getMonth()]+' '+now.getFullYear()+
+      ' | Bank '+fmtS(saldoTotal)+
+      ' | Saku '+fmt(saldoSaku)+
+      ' | Goal '+fmt(danaGoal)+
+      ' | Wajib '+fmt(danaWajib)+
+      ' | Target '+fmt(targetAktif);
+  }
+  const totalInc = document.getElementById('totalInc');
+  const totalExp = document.getElementById('totalExp');
+  const donutMonth = document.getElementById('donutMonth');
+  if(totalInc) totalInc.textContent = fmt(flow.income);
+  if(totalExp) totalExp.textContent = fmt(flow.expense);
+  if(donutMonth) donutMonth.textContent = MF[now.getMonth()];
+  const badge = document.getElementById('balBadge');
+  if(badge) {
+    const ratio = flow.income>0 ? flow.expense/flow.income : 0;
+    if(saldoTotal < saldoAwal) {
+      badge.textContent = 'BOROS ' + fmtS(selisihAwal);
+      badge.className = 'balance-badge badge-danger';
+    } else if(targetAktif>0 && saldoTotal>=targetAktif) {
+      badge.textContent = 'UNTUNG +' + fmtN(saldoTotal-targetAktif);
+      badge.className = 'balance-badge badge-profit';
+    } else if(ratio>=1) {
+      badge.textContent = 'Boros';
+      badge.className = 'balance-badge badge-danger';
+    } else if(ratio>=0.8) {
+      badge.textContent = 'Warning';
+      badge.className = 'balance-badge badge-warning';
+    } else {
+      badge.textContent = 'Aman';
+      badge.className = 'balance-badge badge-aman';
+    }
+  }
+  renderDonut(flow.monthTxs);
+  renderTop3(flow.monthTxs);
+  renderGoals();
+  renderWajibFunds();
+  checkAlert();
+}
+
+function renderStats() {
+  const now = new Date();
+  const months = [];
+  for(let i=5;i>=0;i--) months.push(new Date(now.getFullYear(), now.getMonth()-i, 1));
+  const data = months.map(m=>{
+    const flow = getMonthCashflow(m);
+    return {label:MN[m.getMonth()], inc:flow.income, exp:flow.expense};
+  });
+  const max = Math.max(...data.map(d=>Math.max(d.inc,d.exp)),1);
+  const html = data.map(d=>`
+    <div class="bar-group">
+      <div class="bars">
+        <div class="bar inc-bar" style="height:${Math.round(d.inc/max*90)}px"></div>
+        <div class="bar exp-bar" style="height:${Math.round(d.exp/max*90)}px"></div>
+      </div>
+      <div class="bar-lbl">${d.label}</div>
+    </div>
+  `).join('');
+  const mainChart = document.getElementById('barChart');
+  const proxyChart = document.getElementById('barChartProxy');
+  if(mainChart) mainChart.innerHTML = html;
+  if(proxyChart) proxyChart.innerHTML = html;
+}
+
+function saveSakuTx() {
+  const type = document.getElementById('sakuType').value || 'in';
+  const amount = parseA(document.getElementById('sakuAmt').value);
+  const note = document.getElementById('sakuNote').value.trim();
+  if(!amount) return alert('Nominal wajib diisi!');
+  if(type==='out' && amount>getSakuBalance()) return alert('Saldo saku tidak cukup.');
+  addSakuTx(type, amount, note || (type==='in' ? 'Saldo saku masuk' : 'Pengeluaran cash'));
+  lastTx = new Date().toISOString();
+  save();
+  closeModal('sakuModal');
+  refreshAllViews();
+}
+
+function saveTransferSaku(amountOverride=null, noteOverride='', meta={}) {
+  const amount = amountOverride || parseA(document.getElementById('transferSakuAmt').value);
+  const note = noteOverride || document.getElementById('transferSakuNote').value.trim() || 'Setor cash ke bank';
+  if(!amount) return alert('Nominal wajib diisi!');
+  if(amount>getSakuBalance()) return alert('Saldo saku tidak cukup.');
+  addSakuTx('out', amount, note, {source:meta.source||'transfer', sourceId:meta.sourceId||null});
+  const bankTx = addSystemTx({
+    type:'income',
+    amount:amount,
+    catId:getIncomeCatId(),
+    note:note,
+    source:'internal_transfer',
+    sourceId:meta.sourceId||null
+  });
+  if(meta.sourceId) {
+    const item = hp.find(x=>x.id===meta.sourceId);
+    if(item) {
+      item.settleState = 'banked';
+      item.transferTxId = bankTx.id;
+    }
+  }
+  lastTx = new Date().toISOString();
+  save();
+  closeModal('transferSakuModal');
+  refreshAllViews();
+}
+
+function saveHP() {
+  const name = document.getElementById('hpName').value.trim();
+  const amount = parseA(document.getElementById('hpAmt').value);
+  const note = document.getElementById('hpNote').value.trim();
+  if(!name) return alert('Nama wajib!');
+  if(!amount) return alert('Nominal wajib!');
+  if(curHP==='piutang') {
+    const saldoTersedia = getRealBalance() - getReservedTotal();
+    if(amount>saldoTersedia) return alert('Saldo tersedia tidak cukup untuk membuat piutang ini.');
+  }
+  const hpId = 'hp'+Date.now();
+  let createTx = null;
+  if(curHP==='piutang') {
+    createTx = addSystemTx({
+      type:'expense',
+      amount:amount,
+      catId:getExpenseCatId(),
+      note: note || ('Piutang ke ' + name),
+      source:'hp_create_piutang',
+      sourceId:hpId
+    });
+  } else {
+    createTx = addSystemTx({
+      type:'income',
+      amount:amount,
+      catId:getIncomeCatId(),
+      note: note || ('Dana hutang dari ' + name),
+      source:'hp_create_hutang',
+      sourceId:hpId
+    });
+  }
+  hp.push(normalizeHPItem({
+    id:hpId,
+    type:curHP,
+    name:name,
+    amount:amount,
+    note:note,
+    date:new Date().toISOString(),
+    lunas:false,
+    settleState:'pending',
+    createTxId:createTx ? createTx.id : null
+  }));
+  lastTx = new Date().toISOString();
+  save();
+  closeModal('hpModal');
+  refreshAllViews();
+}
+
+function tandaiLunas(id) {
+  const item = hp.find(x=>x.id===id);
+  if(!item) return;
+  const message = item.type==='piutang'
+    ? 'Tandai piutang ini lunas dan masukkan dulu ke Saldo Saku?'
+    : 'Tandai catatan ini sebagai lunas?';
+  askConfirm(message, ()=>{
+    item.lunas = true;
+    item.tanggalLunas = new Date().toISOString();
+    if(item.type==='piutang') {
+      item.settleState = 'cash';
+      addSakuTx('in', item.amount, 'Pelunasan piutang ' + item.name, {source:'hp_lunas', sourceId:item.id});
+    } else {
+      const settleTx = addSystemTx({
+        type:'expense',
+        amount:item.amount,
+        catId:getExpenseCatId(),
+        note:item.note || ('Pelunasan hutang ke ' + item.name),
+        source:'hp_settle_hutang',
+        sourceId:item.id
+      });
+      item.settleTxId = settleTx.id;
+    }
+    lastTx = new Date().toISOString();
+    save();
+    refreshAllViews();
+  }, {title:'Tandai Lunas', okText:item.type==='piutang'?'Masuk Saku':'Lunaskan'});
+}
+
+function delHP(id) {
+  askConfirm('Hapus catatan hutang/piutang ini?', ()=>{
+    sakuTxs = sakuTxs.filter(t=>t.sourceId!==id);
+    txs = txs.filter(t=>t.sourceId!==id);
+    hp = hp.filter(h=>h.id!==id);
+    save();
+    refreshAllViews();
+  }, {title:'Hapus Catatan', okText:'Hapus', danger:true});
+}
+
+function delTx(id) {
+  const target = txs.find(t=>t.id===id);
+  if(target && isSystemTx(target)) return alert('Transaksi sistem tidak bisa dihapus dari menu ini.');
+  askConfirm('Hapus transaksi ini?', ()=>{
+    txs = txs.filter(t=>t.id!==id);
+    save();
+    refreshAllViews();
+  }, {title:'Hapus Transaksi', okText:'Hapus', danger:true});
+}
+
+function saveTx() {
+  const amount = parseA(document.getElementById('txAmt').value);
+  if(!amount) return alert('Nominal harus diisi!');
+  if(!selCat) return alert('Pilih kategori dulu!');
+  const note = document.getElementById('txNote').value.trim();
+  const date = document.getElementById('txDate').value || new Date().toISOString().split('T')[0];
+  const editId = document.getElementById('txEditId').value;
+  if(editId) {
+    const target = txs.find(x=>x.id===editId);
+    if(target) {
+      if(isSystemTx(target)) return alert('Transaksi sistem tidak bisa diedit.');
+      const prevTime = (new Date(target.date).toTimeString() || '00:00:00').slice(0,8);
+      target.type = curType;
+      target.amount = amount;
+      target.catId = selCat;
+      target.note = note;
+      target.date = new Date(date+'T'+prevTime).toISOString();
+    }
+  } else {
+    txs.push(normalizeTxItem({
+      id:'t'+Date.now(),
+      type:curType,
+      amount:amount,
+      catId:selCat,
+      note:note,
+      date:new Date(date+'T'+new Date().toTimeString().slice(0,8)).toISOString(),
+      source:'manual'
+    }));
+    lastTx = new Date().toISOString();
+  }
+  save();
+  closeModal('txModal');
+  refreshAllViews();
+}
+
+function delTxDetail(id) {
+  const target = txs.find(t=>t.id===id);
+  if(target && isSystemTx(target)) return alert('Transaksi sistem tidak bisa dihapus dari menu ini.');
+  askConfirm('Hapus transaksi ini?', ()=>{
+    txs = txs.filter(t=>t.id!==id);
+    save();
+    refreshAllViews();
+  }, {title:'Hapus Transaksi', okText:'Hapus', danger:true});
+}
+
+function hapusSemua() {
+  const label = curDetailFilter==='all' ? 'semua transaksi manual' : curDetailFilter==='income' ? 'semua pemasukan manual' : 'semua pengeluaran manual';
+  const removable = curDetailFilter==='all'
+    ? txs.filter(t=>!isSystemTx(t))
+    : txs.filter(t=>t.type===curDetailFilter && !isSystemTx(t));
+  if(!removable.length) return alert('Tidak ada transaksi manual yang bisa dihapus pada tampilan ini.');
+  askConfirm('Hapus '+label+'? Transaksi sistem akan tetap aman.', ()=>{
+    const removableIds = new Set(removable.map(t=>t.id));
+    txs = txs.filter(t=>!removableIds.has(t.id));
+    save();
+    refreshAllViews();
+  }, {title:'Hapus Data', okText:'Hapus', danger:true});
+}
+
+function handleImportFileV2(e) {
+  const file = e.target.files?.[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const parsed = JSON.parse(ev.target.result);
+      const data = parsed && parsed.data ? parsed.data : parsed;
+      if(!Array.isArray(data.txs) || !Array.isArray(data.cats) || !Array.isArray(data.goals) || !Array.isArray(data.hp)) {
+        throw new Error('Format backup tidak cocok');
+      }
+      askConfirm('Import akan menimpa data yang sekarang. Lanjut?', ()=>{
+        txs = Array.isArray(data.txs) ? data.txs.map(normalizeTxItem) : [];
+        cats = Array.isArray(data.cats) ? data.cats.map(normalizeCatItem) : [];
+        goals = Array.isArray(data.goals) ? data.goals.map(normalizeGoal) : [];
+        wajibFunds = Array.isArray(data.wajibFunds) ? data.wajibFunds.map(normalizeWajibFund) : [];
+        hp = Array.isArray(data.hp) ? data.hp.map(normalizeHPItem) : [];
+        sakuTxs = Array.isArray(data.sakuTxs) ? data.sakuTxs.map(normalizeSakuItem) : [];
+        saldoAwal = parseFloat(data.saldoAwal||0) || 0;
+        lastTx = data.lastTx || '';
+        targetSaldo = parseFloat(data.targetSaldo||0) || 0;
+        appPreferences = normalizeAppPreferences(data.appPreferences);
+        const theme = data.theme === 'dark' ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', theme);
+        savedTheme = theme;
+        savedThemeMode = data.themeMode === 'manual' ? 'manual' : 'auto';
+        storageSet('dk_themeMode', savedThemeMode);
+        syncThemeMode();
+        normalizeRuntimeState();
+        save();
+        refreshAllViews();
+        alert('Import berhasil.');
+      }, {title:'Import Data', okText:'Import', danger:true});
+    } catch(_) {
+      alert('File backup tidak valid.');
+    } finally {
+      e.target.value = '';
+    }
+  };
+  reader.readAsText(file);
+}
+
+function switchTab(name, btn) {
+  if(isSimpleMode() && name==='hutang') {
+    name = 'dashboard';
+    btn = getNavTabTarget('dashboard','tab') || btn;
+  }
+  activatePageUI(name);
+  if(btn) btn.classList.add('active');
+  render(name);
+}
+
+function switchNav(name, el) {
+  if(isSimpleMode() && name==='hutang') {
+    name = 'dashboard';
+    el = getNavTabTarget('dashboard','nav') || el;
+  }
+  activatePageUI(name);
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  if(el) el.classList.add('active');
+  render(name);
+}
+
+function render(name=currentPage) {
+  if(name==='dashboard') return renderDashboard();
+  if(name==='transaksi') return renderTxList();
+  if(name==='hutang') return renderHP();
+  if(name==='kelola') {
+    renderKelolaLayout();
+    renderCats();
+    renderStats();
+    renderSaldo();
+    renderTargetSaldo();
+    renderSaku();
+    renderWajibFunds();
+    if(typeof renderModeSettings === 'function') renderModeSettings();
+  }
+}
+
+function renderHP() {
+  const filtered = hp.filter(h=>h.type===curHP);
+  const el = document.getElementById('hpList');
+  const total = filtered.filter(h=>!h.lunas).reduce((sum,h)=>sum+h.amount,0);
+  const cashHold = filtered.filter(h=>h.type==='piutang' && h.lunas && h.settleState!=='banked').reduce((sum,h)=>sum+h.amount,0);
+  const sumEl = document.getElementById('hpSum');
+  if(sumEl) {
+    sumEl.textContent = filtered.length
+      ? (curHP==='piutang'
+        ? `Belum dibayar: ${fmt(total)}${cashHold?` | Di saku: ${fmt(cashHold)}`:''}`
+        : `Total hutangmu: ${fmt(total)}`)
+      : '';
+  }
+  if(!el) return;
+  if(!filtered.length) {
+    el.innerHTML = `<div class="tx-empty">${curHP==='piutang'?'Belum ada piutang':'Belum ada hutang'}</div>`;
+    return;
+  }
+  el.innerHTML = filtered.sort((a,b)=>new Date(b.date)-new Date(a.date)).map(h=>{
+    const status = getHPVisual(h);
+    return `
+    <div class="hp-item">
+      <div class="hp-av ${h.type}">${esc(h.name.charAt(0).toUpperCase())}</div>
+      <div class="hp-info">
+        <div class="hp-name">${esc(h.name)}</div>
+        <div class="hp-date">${new Date(h.date).toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric'})}${h.note?' · '+esc(h.note):''}</div>
+      </div>
+      <div class="hp-right">
+        <div class="hp-amt ${h.type}">${fmt(h.amount)}</div>
+        <span class="hp-status ${status.cls}">${status.text}</span>
+      </div>
+      <div class="hp-acts">
+        ${!h.lunas?`<button class="hbtn lunas" onclick="tandaiLunas('${h.id}')">OK</button>`:''}
+        ${(h.type==='piutang' && h.lunas && h.settleState!=='banked')?`<button class="hbtn bank" onclick="transferPiutangToBank('${h.id}')">Bank</button>`:''}
+        <button class="hbtn del" onclick="delHP('${h.id}')">Del</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderGoals() {
+  const el = document.getElementById('goalsList');
+  if(!el) return;
+  const activeGoals = getActiveGoals();
+  const usedGoal = getTodayVotedGoal();
+  const simple = isSimpleMode();
+  renderGoalVoteBar();
+  renderGoalHistory();
+  if(!activeGoals.length) {
+    el.innerHTML = '<div class="empty">Belum ada goal aktif. Tap + untuk tambah atau cek riwayat pembelian di bawah.</div>';
+    return;
+  }
+  el.innerHTML = activeGoals.map(g=>{
+    const pct = g.target>0 ? Math.min(100,Math.round(g.terkumpul/g.target*100)) : 0;
+    const icon = getGoalIcon(g.name);
+    const votedToday = usedGoal && usedGoal.id===g.id;
+    const tokenUsedByOther = usedGoal && usedGoal.id!==g.id;
+    const canVote = !usedGoal;
+    const lastVoteLabel = g.last_voted_at ? new Date(g.last_voted_at).toLocaleDateString('id-ID', {day:'2-digit', month:'short'}) : 'Belum pernah';
+    const chips = simple ? '' : [
+      `<span class="goal-chip vote">${g.vote_count||0} vote</span>`,
+      g.vote_streak>=2 ? `<span class="goal-chip hot">Streak ${g.vote_streak} hari</span>` : '',
+      g.last_voted_at ? `<span class="goal-chip">Terakhir ${lastVoteLabel}</span>` : ''
+    ].filter(Boolean).join('');
+    const softSignal = !simple && g.vote_count>=3 ? '<div class="goal-soft-signal">Ini sering kamu pilih.</div>' : '';
+    const voteLabel = votedToday ? 'Sudah kamu pilih hari ini' : (tokenUsedByOther ? 'Token hari ini habis' : 'Vote Hari Ini');
+    const extraActions = simple ? '' : `<div class="goal-meta">${chips}</div>
+      ${softSignal}
+      <div class="goal-actions">
+        <button class="goal-act-btn vote" onclick="voteGoal('${g.id}')" ${canVote?'':'disabled'}>${voteLabel}</button>
+        <button class="goal-act-btn buy" onclick="markGoalPurchased('${g.id}')">Saya Sudah Beli</button>
+      </div>`;
+    return `<div class="goal-card">
+      <div class="goal-hd">
+        <div class="goal-name">${icon} ${esc(g.name)}</div>
+        <div class="goal-head-actions">
+          <div class="goal-pct">${pct}%</div>
+          <button class="gbtn add" onclick="openGoalModal('${g.id}')" title="Edit">Edit</button>
+          <button class="gbtn add" onclick="openSisihModal('${g.id}')" title="Sisihkan">+ Dana</button>
+          <button class="gbtn del" onclick="delGoal('${g.id}')" title="Hapus">Hapus</button>
+        </div>
+      </div>
+      <div class="prog-track"><div class="prog-fill" style="width:${pct}%"></div></div>
+      <div class="goal-ft"><span>Terkumpul: ${fmt(g.terkumpul)}</span><span>Target: ${fmt(g.target)}</span></div>
+      ${extraActions}
+      ${pct>=100?'<div style="font-size:12px;color:var(--green);font-weight:700;margin-top:6px;text-align:center;">Target tercapai!</div>':''}
+    </div>`;
+  }).join('');
+}
+
+function saveGoal() {
+  const name = document.getElementById('goalName').value.trim();
+  const target = parseA(document.getElementById('goalAmt').value);
+  if(!name) return alert('Nama goal wajib!');
+  if(!target) return alert('Target wajib!');
+  if(editGoalId) {
+    const goal = goals.find(x=>x.id===editGoalId);
+    if(goal) {
+      goal.name = name;
+      goal.target = target;
+      if(goal.terkumpul>target) goal.terkumpul = target;
+    }
+  } else {
+    goals.push(normalizeGoal({id:'g'+Date.now(), name, target, terkumpul:0}));
+  }
+  save();
+  closeModal('goalModal');
+  refreshAllViews();
+}
+
+function delGoal(id) {
+  askConfirm('Hapus goal ini?', ()=>{
+    goals = goals.filter(g=>g.id!==id);
+    save();
+    refreshAllViews();
+  }, {title:'Hapus Goal', okText:'Hapus', danger:true});
+}
+
+function saveSisih() {
+  const id = document.getElementById('sisihId').value;
+  const amount = parseA(document.getElementById('sisihAmt').value);
+  if(!amount) return alert('Jumlah wajib!');
+  const goal = goals.find(x=>x.id===id);
+  if(!goal) return;
+  const saldoTersedia = getRealBalance() - getReservedTotal();
+  if(amount>saldoTersedia) return alert('Saldo tersedia tidak cukup untuk disisihkan!');
+  goal.terkumpul += amount;
+  lastTx = new Date().toISOString();
+  save();
+  closeModal('sisihModal');
+  refreshAllViews();
+}
+
+function voteGoal(id) {
+  const goal = goals.find(x=>x.id===id && !x.is_purchased);
+  if(!goal) return;
+  const usedGoal = getTodayVotedGoal();
+  if(usedGoal) {
+    alert(usedGoal.id===id ? 'Kamu sudah vote goal ini hari ini.' : `Token hari ini sudah dipakai untuk "${usedGoal.name}".`);
+    return;
+  }
+  const now = new Date();
+  const prevDay = goal.last_voted_at ? dayKeyLocal(goal.last_voted_at) : '';
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate()-1);
+  goal.vote_count = Number(goal.vote_count||0) + 1;
+  goal.vote_streak = prevDay && prevDay===dayKeyLocal(yesterday) ? Number(goal.vote_streak||0)+1 : 1;
+  goal.last_voted_at = now.toISOString();
+  lastTx = now.toISOString();
+  save();
+  refreshAllViews();
+}
+
+function markGoalPurchased(id) {
+  const goal = goals.find(x=>x.id===id && !x.is_purchased);
+  if(!goal) return;
+  askConfirm(`Pindahkan "${goal.name}" ke riwayat pembelian?`, ()=>{
+    goal.is_purchased = true;
+    goal.purchased_at = new Date().toISOString();
+    save();
+    refreshAllViews();
+  }, {title:'Saya Sudah Beli', okText:'Pindahkan'});
+}
+
+function getActionHubItems() {
+  const items = [
+    {key:'tx', kicker:'Utama', label:'Tambah Transaksi', desc:'Catat pemasukan atau pengeluaran harian.', primary:true, action:()=>openTxModal()},
+    {key:'sakuIn', kicker:'Cash', label:'Saldo Saku Masuk', desc:'Simpan uang cash yang belum masuk bank.', action:()=>openSakuModal('in')},
+    {key:'sakuOut', kicker:'Cash', label:'Saldo Saku Keluar', desc:'Catat pengeluaran cash di luar bank.', action:()=>openSakuModal('out')},
+    {key:'goal', kicker:'Rencana', label:'Tambah Goal', desc:'Buat target tabungan atau wishlist baru.', action:()=>openGoalModal()},
+    {key:'wajib', kicker:'Wajib', label:'Tambah Dana Wajib', desc:'Catat kebutuhan penting masa depan.', action:()=>openWajibModal()},
+    {key:'piutang', kicker:'Piutang', label:'Tambah Piutang', desc:'Catat uang yang kamu pinjamkan.', action:()=>{ curHP='piutang'; renderHP(); openHPModal(); }},
+    {key:'hutang', kicker:'Hutang', label:'Tambah Hutang', desc:'Catat uang yang kamu terima sebagai hutang.', action:()=>{ curHP='hutang'; renderHP(); openHPModal(); }},
+    {key:'kategori', kicker:'Kelola', label:'Tambah Kategori', desc:'Tambah kategori transaksi baru bila perlu.', action:()=>openAddCatModal()}
+  ];
+  if(isSimpleMode()) {
+    return items.filter(item=>['tx','sakuIn','sakuOut','goal'].includes(item.key));
+  }
+  return items;
+}
+
+function renderActionHub() {
+  const grid = document.getElementById('actionHubGrid');
+  const sub = document.getElementById('actionHubSub');
+  if(!grid || !sub) return;
+  const items = getActionHubItems();
+  const contextMap = {
+    dashboard: 'Dari satu tombol ini kamu bisa masuk ke semua aksi utama tanpa bikin layar penuh tombol.',
+    transaksi: 'Fokus utama di sini tetap transaksi, tapi aksi lain tetap bisa dicapai dari tempat yang sama.',
+    hutang: 'Saat kamu lagi di modul hutang-piutang, semua aksi tetap satu pintu supaya tidak membingungkan.',
+    kelola: 'Kelola tetap rapi. Aksi baru tidak harus selalu muncul sebagai tombol terpisah di layar.'
+  };
+  sub.textContent = contextMap[currentPage] || contextMap.dashboard;
+  grid.innerHTML = items.map(item=>`
+    <button class="action-btn${item.primary?' primary':''}" onclick="runActionHub('${item.key}')">
+      <div class="action-kicker">${item.kicker}</div>
+      <div class="action-label">${item.label}</div>
+      <div class="action-desc">${item.desc}</div>
+    </button>
+  `).join('');
+}
+
+function runActionHub(key) {
+  const item = getActionHubItems().find(entry=>entry.key===key);
+  closeModal('actionHubModal');
+  if(item && typeof item.action === 'function') item.action();
+}
+
+function openActionHub() {
+  renderActionHub();
+  openModal('actionHubModal');
+}
+
+function updateFab() {
+  const fab = document.getElementById('mainFab');
+  const hint = document.getElementById('fabHint');
+  if(!fab) return;
+  fab.title = 'Pusat aksi';
+  fab.setAttribute('aria-label', 'Pusat aksi');
+  fab.innerHTML = '＋';
+  if(hint) {
+    hint.style.display = currentPage==='dashboard' ? 'block' : 'none';
+  }
+}
+
+function handleMainFab() {
+  openActionHub();
+}
+
+function applySurfaceSimplification() {
+  ['goalQuickAddBtn','wajibQuickAddBtn','hpQuickAddBtn'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.style.display = 'none';
+  });
+}
+
+normalizeRuntimeState();
+applySurfaceSimplification();
+
 document.querySelectorAll('.overlay').forEach(el=>{el.addEventListener('click',e=>{if(e.target===el)el.classList.remove('open');});});
 document.getElementById('importFile').addEventListener('change', handleImportFileV2);
 document.getElementById('themeBtn').addEventListener('dblclick', ()=>enableAutoTheme());
@@ -2648,14 +3558,7 @@ startThemeWatcher();
 document.getElementById('themeBtn').textContent = savedTheme==='dark'?'☀️':'🌙';
 updateThemeButton();
 curMonth=new Date();
-updateFab();
-renderDashboard();
-renderTxList();
-renderHP();
-renderSaldo();
-renderSaku();
-renderTargetSaldo();
-applyAppMode();
+refreshAllViews();
 hideSplash();
 </script>
 </body>
