@@ -4875,6 +4875,432 @@ function renderKelolaLayout() {
     </div>`;
 }
 
+// Core single-user mode: keep only one main balance and manual income/expense.
+const CORE_HIDDEN_CATEGORY_NAMES = ['kulakan/modal', 'untung jualan'];
+
+function isCoreHiddenCategory(cat={}) {
+  return CORE_HIDDEN_CATEGORY_NAMES.includes(String(cat.name || '').toLowerCase());
+}
+
+function getCoreVisibleCategories(type=null) {
+  return cats.filter(cat => !isCoreHiddenCategory(cat) && (!type || cat.type === type));
+}
+
+function getCoreManualTxs() {
+  return txs
+    .map(normalizeTxItem)
+    .filter(tx => !tx.source || tx.source === 'manual');
+}
+
+function ensureDefaultCategories() {
+  const defaults = [
+    {name:'Gaji', emoji:'💼', type:'income'},
+    {name:'Pemasukan Lain', emoji:'📥', type:'income'},
+    {name:'Makan', emoji:'🍽️', type:'expense'},
+    {name:'Transport', emoji:'🛵', type:'expense'},
+    {name:'Tagihan', emoji:'🧾', type:'expense'},
+    {name:'Belanja', emoji:'🛒', type:'expense'},
+    {name:'Lain-lain', emoji:'📦', type:'expense'}
+  ];
+  defaults.forEach(item=>{
+    const exists = cats.some(cat => cat.type===item.type && String(cat.name||'').toLowerCase()===item.name.toLowerCase());
+    if(!exists) cats.push({ id:'c'+Date.now()+Math.floor(Math.random()*1000), ...item });
+  });
+}
+
+function normalizeRuntimeState() {
+  cats = Array.isArray(cats) ? cats.map(normalizeCatItem) : [];
+  txs = Array.isArray(txs) ? txs.map(normalizeTxItem) : [];
+  goals = Array.isArray(goals) ? goals.map(normalizeGoal) : [];
+  wajibFunds = Array.isArray(wajibFunds) ? wajibFunds.map(normalizeWajibFund) : [];
+  hp = Array.isArray(hp) ? hp.map(normalizeHPItem) : [];
+  sakuTxs = Array.isArray(sakuTxs) ? sakuTxs.map(normalizeSakuItem) : [];
+  ensureDefaultCategories();
+  saldoAwal = parseFloat(saldoAwal || wallets?.operational?.openingBalance || 0) || 0;
+  targetSaldo = 0;
+  wallets = normalizeWalletState(wallets);
+  wallets.operational.openingBalance = saldoAwal;
+  appPreferences = normalizeAppPreferences(appPreferences);
+  appPreferences.app_mode = 'simple';
+  appPreferences.hint_seen = true;
+  appPreferences.onboarding_done = true;
+  appPreferences.wallet_visibility = {
+    operational: true,
+    emergency: false,
+    investment: false,
+    business: false
+  };
+}
+
+function save() {
+  wallets = normalizeWalletState(wallets);
+  wallets.operational.openingBalance = saldoAwal;
+  storageSet('dk_txs', JSON.stringify(txs));
+  storageSet('dk_cats', JSON.stringify(cats));
+  storageSet('dk_goals', JSON.stringify(goals));
+  storageSet('dk_wajibFunds', JSON.stringify(wajibFunds));
+  storageSet('dk_hp', JSON.stringify(hp));
+  storageSet('dk_sakuTxs', JSON.stringify(sakuTxs));
+  storageSet('dk_wallets', JSON.stringify(wallets));
+  storageSet('dk_saldo', saldoAwal);
+  storageSet('dk_targetSaldo', '0');
+  storageSet('dk_themeMode', savedThemeMode);
+  storageSet('dk_theme', document.documentElement.getAttribute('data-theme')||'light');
+  saveAppPreferences();
+  if(lastTx) storageSet('dk_lastTx', lastTx);
+  else storageRemove('dk_lastTx');
+}
+
+function getMonthTxs(m) {
+  return getCoreManualTxs().filter(t => {
+    const d = new Date(t.date);
+    return d.getFullYear()===m.getFullYear() && d.getMonth()===m.getMonth();
+  });
+}
+
+function getMonthCashflow(monthDate) {
+  const monthTxs = getMonthTxs(monthDate);
+  const income = monthTxs.filter(t=>t.type==='income').reduce((sum, t)=>sum+t.amount,0);
+  const expense = monthTxs.filter(t=>t.type==='expense').reduce((sum, t)=>sum+t.amount,0);
+  return {income, expense, monthTxs};
+}
+
+function getRealBalance() {
+  const base = parseFloat(saldoAwal || 0) || 0;
+  const delta = getCoreManualTxs().reduce((sum, tx)=>sum + (tx.type==='income' ? tx.amount : -tx.amount), 0);
+  return base + delta;
+}
+
+function updateFab() {
+  const fab = document.getElementById('mainFab');
+  if(!fab) return;
+  fab.title = 'Tambah transaksi';
+  fab.setAttribute('aria-label', 'Tambah transaksi');
+  fab.innerHTML = '＋';
+}
+
+function handleMainFab() {
+  openTxModal();
+}
+
+function applyAppMode() {
+  ['hutang','page-hutang'].forEach(id=>{
+    const el = id === 'hutang' ? getNavTabTarget('hutang','nav') || getNavTabTarget('hutang','tab') : document.getElementById(id);
+    if(el) el.style.display = 'none';
+  });
+  setElementVisible(getNavTabTarget('hutang','nav'), false);
+  setElementVisible(getNavTabTarget('hutang','tab'), false);
+  setElementVisible(document.getElementById('page-hutang'), false);
+  const hideSelectors = [
+    '#walletGrid',
+    '#goalsList',
+    '#goalVoteBar',
+    '#goalHistoryWrap',
+    '#wajibList',
+    '#laporanKeuanganSec',
+    '#actionHubModal',
+    '#feedbackModal',
+    '#onboardingModal'
+  ];
+  hideSelectors.forEach(selector=>{
+    const el = document.querySelector(selector);
+    if(el) el.style.display = 'none';
+  });
+  const goalsSection = document.getElementById('goalsList')?.closest('.sec');
+  const wajibSection = document.getElementById('wajibList')?.closest('.sec');
+  const oldDonut = document.getElementById('donutWrap')?.closest('.sec');
+  const oldTop = document.getElementById('topList')?.closest('.sec');
+  if(goalsSection) goalsSection.style.display = 'none';
+  if(wajibSection) wajibSection.style.display = 'none';
+  if(oldDonut) oldDonut.style.display = 'none';
+  if(oldTop) oldTop.style.display = 'none';
+  const tabs = document.querySelector('.tabs');
+  if(tabs) tabs.style.display = 'none';
+  if(currentPage === 'hutang') activatePageUI('dashboard');
+  updateFab();
+}
+
+function render(name) {
+  if(name==='dashboard') renderDashboard();
+  if(name==='transaksi') renderTxList();
+  if(name==='kelola') { renderKelolaLayout(); renderCats(); renderStats(); renderSaldo(); }
+}
+
+function renderDashboard() {
+  const now = new Date();
+  const flow = getMonthCashflow(now);
+  const saldoTotal = getRealBalance();
+  const balEl = document.getElementById('balAmt');
+  if(balEl) {
+    balEl.textContent = fmtS(saldoTotal);
+    balEl.style.color = saldoTotal < 0 ? '#ff6b6b' : 'white';
+  }
+  const balSub = document.getElementById('balSub');
+  if(balSub) balSub.textContent = `${MF[now.getMonth()]} ${now.getFullYear()} · Saldo utama ${fmt(saldoTotal)}`;
+  const totalInc = document.getElementById('totalInc');
+  const totalExp = document.getElementById('totalExp');
+  if(totalInc) totalInc.textContent = fmt(flow.income);
+  if(totalExp) totalExp.textContent = fmt(flow.expense);
+  const badge = document.getElementById('balBadge');
+  if(badge) {
+    const diff = saldoTotal - saldoAwal;
+    if(diff < 0) {
+      badge.textContent = 'Minus ' + fmtS(diff);
+      badge.className = 'balance-badge badge-danger';
+    } else if(diff > 0) {
+      badge.textContent = 'Naik +' + fmtN(diff);
+      badge.className = 'balance-badge badge-profit';
+    } else {
+      badge.textContent = 'Stabil';
+      badge.className = 'balance-badge badge-aman';
+    }
+  }
+  const balanceCard = document.querySelector('.balance-card');
+  if(balanceCard) balanceCard.removeAttribute('onclick');
+  document.querySelectorAll('.stat-card').forEach(card=>card.removeAttribute('onclick'));
+  checkAlert();
+}
+
+function renderTxList() {
+  const label = document.getElementById('txMonthLabel');
+  if(label) label.textContent = MF[curMonth.getMonth()]+' '+curMonth.getFullYear();
+  const el = document.getElementById('txList');
+  if(!el) return;
+  const monthTxs = getMonthTxs(curMonth).sort((a,b)=>new Date(b.date)-new Date(a.date));
+  if(!monthTxs.length) {
+    el.innerHTML = '<div class="tx-empty">Belum ada transaksi bulan ini</div>';
+    return;
+  }
+  const grouped = {};
+  monthTxs.forEach(t=>{
+    const d = new Date(t.date);
+    const k = d.toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long'});
+    if(!grouped[k]) grouped[k] = [];
+    grouped[k].push(t);
+  });
+  el.innerHTML = Object.entries(grouped).map(([date, dayTxs])=>`
+    <div class="tx-date-group">
+      <div class="tx-date-label">${esc(date)}</div>
+      ${dayTxs.map(t=>{
+        const c = cats.find(x=>x.id===t.catId);
+        return `
+          <div class="tx-item" id="tx-${t.id}">
+            <div class="tx-emoji" onclick="openEditTx('${t.id}')">${c?.emoji || '📦'}</div>
+            <div class="tx-info" onclick="openEditTx('${t.id}')">
+              <div class="tx-cat">${esc(c?.name || 'Lain-lain')}</div>
+              <div class="tx-note">${esc(t.note || 'Transaksi manual')}</div>
+            </div>
+            <div class="tx-right">
+              <div class="tx-amt ${t.type}">${t.type==='income'?'+':'-'}${fmt(t.amount)}</div>
+              <div class="tx-time">${new Date(t.date).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})}</div>
+            </div>
+            <div class="tx-del" onclick="delTx('${t.id}')">🗑️</div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `).join('');
+}
+
+function renderCats() {
+  const list = getCoreVisibleCategories().map(c=>`
+    <div class="cat-item">
+      <div class="cat-emoji">${c.emoji}</div>
+      <div class="cat-name">${esc(c.name)}</div>
+      <div class="cat-type ${c.type}">${c.type==='income'?'Pemasukan':'Pengeluaran'}</div>
+      <div class="cat-acts">
+        <button class="cbtn edit" onclick="editCat('${c.id}')">✏️</button>
+        <button class="cbtn del" onclick="delCat('${c.id}')">🗑️</button>
+      </div>
+    </div>
+  `).join('');
+  const a = document.getElementById('catList');
+  const b = document.getElementById('catListProxy');
+  if(a) a.innerHTML = list;
+  if(b) b.innerHTML = list;
+}
+
+function renderCatGrid() {
+  const options = getCoreVisibleCategories(curType).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''), 'id'));
+  document.getElementById('catGrid').innerHTML = options.map(c=>`<div class="cat-opt${selCat===c.id?' sel':''}" onclick="selCatFn('${c.id}')"><div class="cat-opt-icon">${c.emoji}</div><div class="cat-opt-name">${esc(c.name)}</div></div>`).join('');
+}
+
+function renderKelolaLayout() {
+  const wrap = document.getElementById('kelolaWrap');
+  if(!wrap) return;
+  wrap.innerHTML = `
+    <div class="sec">
+      <div class="fold-card open" id="foldSaldoUtama">
+        <div class="fold-head" onclick="toggleFold('foldSaldoUtama')">
+          <div class="fold-left">
+            <div class="fold-icon">💰</div>
+            <div>
+              <div class="fold-title">Saldo Utama</div>
+              <div class="fold-sub">Satu saldo utama untuk semua transaksi manual.</div>
+            </div>
+          </div>
+          <div class="fold-arrow">⌄</div>
+        </div>
+        <div class="fold-body">
+          <div class="saldo-card" onclick="openSaldoModal()">
+            <div>
+              <div class="saldo-label">Tap untuk ubah saldo awal</div>
+              <div class="saldo-val" id="saldoAwalValProxy">Rp 0</div>
+            </div>
+            <div style="font-size:28px;">💰</div>
+          </div>
+          <div class="backup-row">
+            <button class="btn-ghost" onclick="exportData()">⬇️ Export Data</button>
+            <button class="btn-ghost" onclick="triggerImport()">⬆️ Import Data</button>
+          </div>
+          <button class="btn-reset" onclick="resetSaldo()">Reset Saldo</button>
+        </div>
+      </div>
+    </div>
+    <div class="sec">
+      <div class="fold-card" id="foldKategori">
+        <div class="fold-head" onclick="toggleFold('foldKategori')">
+          <div class="fold-left">
+            <div class="fold-icon">📂</div>
+            <div>
+              <div class="fold-title">Kategori</div>
+              <div class="fold-sub">Kelola kategori pemasukan dan pengeluaran manual.</div>
+            </div>
+          </div>
+          <div class="fold-arrow">⌄</div>
+        </div>
+        <div class="fold-body">
+          <div class="sec-hd">
+            <span class="sec-title">Daftar Kategori</span>
+            <button class="link-btn" onclick="openAddCatModal()">+ Tambah</button>
+          </div>
+          <div class="cat-list" id="catListProxy"></div>
+        </div>
+      </div>
+    </div>
+    <div class="sec" style="margin-bottom:16px;">
+      <div class="fold-card" id="foldStatistik">
+        <div class="fold-head" onclick="toggleFold('foldStatistik')">
+          <div class="fold-left">
+            <div class="fold-icon">📊</div>
+            <div>
+              <div class="fold-title">Statistik 6 Bulan</div>
+              <div class="fold-sub">Ringkasan pemasukan dan pengeluaran manual.</div>
+            </div>
+          </div>
+          <div class="fold-arrow">⌄</div>
+        </div>
+        <div class="fold-body">
+          <div class="trend-card">
+            <div class="bar-chart" id="barChartProxy"></div>
+            <div class="chart-legend">
+              <div class="cl-item"><div class="cl-dot" style="background:var(--green)"></div>Pemasukan</div>
+              <div class="cl-item"><div class="cl-dot" style="background:var(--red)"></div>Pengeluaran</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderSaldo() {
+  const value = fmt(saldoAwal);
+  const a = document.getElementById('saldoAwalVal');
+  const b = document.getElementById('saldoAwalValProxy');
+  if(a) a.textContent = value;
+  if(b) b.textContent = value;
+}
+
+function renderTargetSaldo() {}
+function renderSaku() {}
+function renderWajibFunds() {}
+function renderGoals() {}
+function renderHP() {
+  const el = document.getElementById('hpList');
+  if(el) el.innerHTML = '<div class="tx-empty">Fitur hutang-piutang dinonaktifkan sementara.</div>';
+}
+function renderWalletCards() {}
+function renderWalletProxyCards() {}
+function renderWalletModuleSettings() {}
+function renderFeedbackPanel() {}
+function maybeShowOnboarding() {}
+
+function exportData() {
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    version: 'core-basic',
+    data: {
+      txs: getCoreManualTxs(),
+      cats: getCoreVisibleCategories(),
+      saldoAwal,
+      lastTx,
+      theme: document.documentElement.getAttribute('data-theme')||'light',
+      themeMode: savedThemeMode
+    }
+  };
+  const blob = new Blob([JSON.stringify(payload,null,2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const dt = new Date();
+  const stamp = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+  a.href = url;
+  a.download = `dompetku-basic-backup-${stamp}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function handleImportFileV2(e) {
+  const file = e.target.files?.[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const parsed = JSON.parse(ev.target.result);
+      const data = parsed?.data || parsed;
+      const transactions = data.transactions || data.txs;
+      const categories = data.categories || data.cats;
+      if(!Array.isArray(transactions) || !Array.isArray(categories)) {
+        throw new Error('Format backup tidak cocok');
+      }
+      askConfirm('Import akan menimpa transaksi manual yang sekarang. Lanjut?', ()=>{
+        txs = transactions.map(normalizeTxItem).filter(tx => !tx.source || tx.source === 'manual');
+        cats = categories.map(normalizeCatItem).filter(cat => !isCoreHiddenCategory(cat));
+        saldoAwal = parseFloat(data.saldoAwal ?? wallets?.operational?.openingBalance ?? 0) || 0;
+        lastTx = data.lastTx || '';
+        const theme = data.theme === 'dark' ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', theme);
+        savedTheme = theme;
+        savedThemeMode = data.themeMode === 'manual' ? 'manual' : 'auto';
+        storageSet('dk_themeMode', savedThemeMode);
+        syncThemeMode();
+        normalizeRuntimeState();
+        save();
+        refreshAllViews();
+        alert('Import berhasil.');
+      }, {title:'Import Data', okText:'Import', danger:true});
+    } catch(err) {
+      alert('File backup tidak valid.');
+    } finally {
+      e.target.value = '';
+    }
+  };
+  reader.readAsText(file);
+}
+
+function refreshAllViews() {
+  if(currentPage==='hutang') currentPage = 'dashboard';
+  if(currentPage==='kelola') renderKelolaLayout();
+  renderDashboard();
+  renderTxList();
+  renderSaldo();
+  renderCats();
+  renderStats();
+  updateFab();
+  applyAppMode();
+}
+
 normalizeRuntimeState();
 applySurfaceSimplification();
 
