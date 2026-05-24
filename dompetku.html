@@ -957,6 +957,8 @@ select.finp{appearance:none;}
 <script>
 // DATA
 const memoryStorage = {};
+
+
 function storageGet(key, fallback=null) {
   try {
     const value = window.localStorage.getItem(key);
@@ -965,6 +967,7 @@ function storageGet(key, fallback=null) {
     return Object.prototype.hasOwnProperty.call(memoryStorage, key) ? memoryStorage[key] : fallback;
   }
 }
+
 function storageSet(key, value) {
   try {
     window.localStorage.setItem(key, value);
@@ -972,57 +975,13 @@ function storageSet(key, value) {
     memoryStorage[key] = String(value);
   }
 }
+
 function storageRemove(key) {
   try {
     window.localStorage.removeItem(key);
   } catch(_) {
     delete memoryStorage[key];
   }
-}
-
-let txs = JSON.parse(storageGet('dk_txs','[]')||'[]');
-let cats = JSON.parse(storageGet('dk_cats','null')||'null') || [
-  {id:'c1',name:'Makan',emoji:'🍔',type:'expense'},{id:'c2',name:'Transport',emoji:'🚗',type:'expense'},
-  {id:'c3',name:'Nongkrong',emoji:'☕',type:'expense'},{id:'c4',name:'Belanja',emoji:'🛒',type:'expense'},
-  {id:'c5',name:'Pulsa',emoji:'📱',type:'expense'},{id:'c6',name:'Hiburan',emoji:'🎮',type:'expense'},
-  {id:'c7',name:'Kesehatan',emoji:'💊',type:'expense'},{id:'c8',name:'Lain-lain',emoji:'📦',type:'expense'},
-  {id:'c9',name:'Kiriman Ortu',emoji:'💝',type:'income'},{id:'c10',name:'Beasiswa',emoji:'🎓',type:'income'},
-  {id:'c11',name:'Freelance',emoji:'💻',type:'income'},{id:'c12',name:'Lain-lain',emoji:'💰',type:'income'},
-];
-let goals = JSON.parse(storageGet('dk_goals','[]')||'[]');
-let wajibFunds = JSON.parse(storageGet('dk_wajibFunds','[]')||'[]');
-let hp = JSON.parse(storageGet('dk_hp','[]')||'[]');
-let sakuTxs = JSON.parse(storageGet('dk_sakuTxs','[]')||'[]');
-let saldoAwal = parseFloat(storageGet('dk_saldo','0')||'0');
-let lastTx = storageGet('dk_lastTx', null);
-let savedTheme = storageGet('dk_theme','light') || 'light';
-let savedThemeMode = storageGet('dk_themeMode','auto') || 'auto';
-let targetSaldo = parseFloat(storageGet('dk_targetSaldo','0')||'0');
-let wallets = JSON.parse(storageGet('dk_wallets','null')||'null');
-let feedbackLog = JSON.parse(storageGet('dk_feedback_log','[]')||'[]');
-let curType = 'expense', selCat = null, editCatId = null, curMonth = new Date(), curHP = 'piutang', currentPage = 'dashboard';
-let confirmResolver = null;
-let themeTimer = null;
-let editGoalId = null;
-let editWajibId = null;
-let weeklyExpenseChart = null;
-let monthlyCategoryChart = null;
-const APP_PREFS_KEY = 'app_preferences';
-let appPreferences = null;
-
-// UTILS
-const fmtN = n => Math.abs(Math.round(n)).toLocaleString('id-ID');
-const fmt = n => 'Rp ' + fmtN(n);
-const fmtS = n => (n<0?'-Rp ':'Rp ') + fmtN(n);
-const MN = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
-const MF = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
-const parseA = s => parseFloat((s||'').replace(/\./g,''))||0;
-const esc = s => String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-
-function dayKeyLocal(value=new Date()){
-  const d = value instanceof Date ? value : new Date(value);
-  if(Number.isNaN(d.getTime())) return '';
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
 function normalizeGoal(goal={}) {
@@ -1039,8 +998,6 @@ function normalizeGoal(goal={}) {
   };
 }
 
-goals = Array.isArray(goals) ? goals.map(normalizeGoal) : [];
-
 function normalizeWajibFund(item={}) {
   return {
     id: item.id || ('w'+Date.now()+Math.floor(Math.random()*1000)),
@@ -1050,8 +1007,6 @@ function normalizeWajibFund(item={}) {
     deadline: item.deadline || ''
   };
 }
-
-wajibFunds = Array.isArray(wajibFunds) ? wajibFunds.map(normalizeWajibFund) : [];
 
 function normalizeHPItem(item={}) {
   return {
@@ -1070,8 +1025,6 @@ function normalizeHPItem(item={}) {
   };
 }
 
-hp = Array.isArray(hp) ? hp.map(normalizeHPItem) : [];
-
 function getReservedGoalTotal() {
   return goals.filter(g=>!g.is_purchased).reduce((s,g)=>s+(g.terkumpul||0),0);
 }
@@ -1085,9 +1038,9 @@ function getReservedTotal() {
 }
 
 function getRealBalance() {
-  const tInc = txs.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
-  const tExp = txs.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
-  return saldoAwal + tInc - tExp;
+  const base = parseFloat(saldoAwal || 0) || 0;
+  const delta = getCoreManualTxs().reduce((sum, tx)=>sum + (tx.type==='income' ? tx.amount : -tx.amount), 0);
+  return base + delta;
 }
 
 function getSakuBalance() {
@@ -1284,9 +1237,6 @@ function loadAppPreferences() {
   };
 }
 
-appPreferences = loadAppPreferences();
-saveAppPreferences();
-
 function saveAppPreferences() {
   storageSet(APP_PREFS_KEY, JSON.stringify(appPreferences));
 }
@@ -1339,15 +1289,41 @@ function activatePageUI(name) {
 
 function applyAppMode() {
   const simple = isSimpleMode();
-  setElementVisible(getNavTabTarget('hutang','nav'), !simple);
-  setElementVisible(getNavTabTarget('hutang','tab'), !simple);
+  
+  // Hide/show hutang-piutang tab & page
+  const hutangNav = getNavTabTarget('hutang','nav');
+  const hutangTab = getNavTabTarget('hutang','tab');
+  setElementVisible(hutangNav, !simple);
+  setElementVisible(hutangTab, !simple);
   setElementVisible(document.getElementById('page-hutang'), !simple);
+  
+  // Hide/show sections on Dashboard
   const wajibSection = document.getElementById('wajibList')?.closest('.sec');
+  const goalsSection = document.getElementById('goalsList')?.closest('.sec');
   const reportSection = document.getElementById('laporanKeuanganSec');
-  setElementVisible(wajibSection, !simple);
-  setElementVisible(reportSection, !simple);
+  const walletGrid = document.getElementById('walletGrid');
   const voteBar = document.getElementById('goalVoteBar');
+  const goalHistory = document.getElementById('goalHistoryWrap');
+  
+  setElementVisible(wajibSection, !simple);
+  setElementVisible(goalsSection, !simple);
+  setElementVisible(reportSection, !simple);
+  setElementVisible(walletGrid, !simple);
   if(voteBar) voteBar.style.display = simple ? 'none' : '';
+  if(goalHistory) goalHistory.style.display = simple ? 'none' : '';
+  
+  // Donut and Top categories sections on dashboard
+  const donutSection = document.getElementById('donutWrap')?.closest('.sec');
+  const topSection = document.getElementById('topList')?.closest('.sec');
+  setElementVisible(donutSection, !simple);
+  setElementVisible(topSection, !simple);
+  
+  // Bottom tabs navigation bar
+  const tabs = document.querySelector('.tabs');
+  if (tabs) {
+    tabs.style.display = simple ? 'none' : '';
+  }
+  
   if(simple && currentPage==='hutang') {
     activatePageUI('dashboard');
   }
@@ -1371,12 +1347,15 @@ function fmtIn(el, hintId) {
 }
 
 function save() {
+  wallets = normalizeWalletState(wallets);
+  wallets.operational.openingBalance = saldoAwal;
   storageSet('dk_txs', JSON.stringify(txs));
   storageSet('dk_cats', JSON.stringify(cats));
   storageSet('dk_goals', JSON.stringify(goals));
   storageSet('dk_wajibFunds', JSON.stringify(wajibFunds));
   storageSet('dk_hp', JSON.stringify(hp));
   storageSet('dk_sakuTxs', JSON.stringify(sakuTxs));
+  storageSet('dk_wallets', JSON.stringify(wallets));
   storageSet('dk_saldo', saldoAwal);
   storageSet('dk_targetSaldo', targetSaldo);
   storageSet('dk_themeMode', savedThemeMode);
@@ -1387,13 +1366,12 @@ function save() {
 }
 
 function getMonthTxs(m) {
-  return txs.filter(t => {
+  return getCoreManualTxs().filter(t => {
     const d = new Date(t.date);
     return d.getFullYear()===m.getFullYear() && d.getMonth()===m.getMonth();
   });
 }
 
-// THEME
 function getAutoTheme() {
   const h = new Date().getHours();
   return h>=6 && h<18 ? 'light' : 'dark';
@@ -1438,29 +1416,22 @@ function startThemeWatcher() {
 }
 
 function toggleTheme() {
-  const h = document.documentElement;
-  const dark = h.getAttribute('data-theme')==='dark';
-  h.setAttribute('data-theme', dark?'light':'dark');
-  document.getElementById('themeBtn').textContent = dark?'🌙':'☀️';
-  storageSet('dk_theme', dark?'light':'dark');
+  const dark = document.documentElement.getAttribute('data-theme')==='dark';
+  savedThemeMode = 'manual';
+  storageSet('dk_themeMode', savedThemeMode);
+  savedTheme = dark ? 'light' : 'dark';
+  applyTheme(savedTheme);
 }
 
 function updateFab() {
   const fab = document.getElementById('mainFab');
   if(!fab) return;
-  const labels = {
-    dashboard: 'Tambah transaksi',
-    transaksi: 'Tambah transaksi',
-    hutang: curHP==='piutang' ? 'Tambah piutang' : 'Tambah hutang',
-    kelola: 'Tambah kategori',
-  };
-  fab.title = labels[currentPage] || 'Tambah';
-  fab.setAttribute('aria-label', fab.title);
+  fab.title = 'Tambah transaksi';
+  fab.setAttribute('aria-label', 'Tambah transaksi');
+  fab.innerHTML = '＋';
 }
 
 function handleMainFab() {
-  if(currentPage==='hutang') return openHPModal();
-  if(currentPage==='kelola') return openAddCatModal();
   openTxModal();
 }
 
@@ -1481,35 +1452,24 @@ function closeConfirm(confirmed) {
   if(confirmed && fn) fn();
 }
 
-// NAV
 function switchTab(name, btn) {
-  if(isSimpleMode() && name==='hutang'){
+  if(isSimpleMode() && name==='hutang') {
     name = 'dashboard';
     btn = getNavTabTarget('dashboard','tab') || btn;
   }
-  currentPage = name;
-  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-  document.getElementById('page-'+name).classList.add('active');
-  btn.classList.add('active');
-  syncNav(name);
-  updateFab();
+  activatePageUI(name);
+  if(btn) btn.classList.add('active');
   render(name);
 }
 
 function switchNav(name, el) {
-  if(isSimpleMode() && name==='hutang'){
+  if(isSimpleMode() && name==='hutang') {
     name = 'dashboard';
     el = getNavTabTarget('dashboard','nav') || el;
   }
-  currentPage = name;
+  activatePageUI(name);
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
-  el.classList.add('active');
-  const names = ['dashboard','transaksi','hutang','kelola'];
-  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',names[i]===name));
-  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-  document.getElementById('page-'+name).classList.add('active');
-  updateFab();
+  if(el) el.classList.add('active');
   render(name);
 }
 
@@ -1521,59 +1481,133 @@ function syncNav(name) {
 function render(name) {
   if(name==='dashboard') renderDashboard();
   if(name==='transaksi') renderTxList();
-  if(name==='hutang') renderHP();
-  if(name==='kelola') { renderKelolaLayout(); renderCats(); renderStats(); renderSaldo(); renderTargetSaldo(); renderSaku(); renderModeSettings(); }
+  if(name==='kelola') { renderKelolaLayout(); renderCats(); renderStats(); renderSaldo(); }
 }
 
-// ALERT
 function checkAlert() {
-  const b = document.getElementById('alertBanner');
+  const banner = document.getElementById('alertBanner');
   const now = new Date();
   if(lastTx) {
-    const diff = Math.floor((now-new Date(lastTx))/86400000);
-    if(diff>=3){b.className='alert show idle';b.innerHTML=`💤 Sudah ${diff} hari belum catat transaksi. Jangan sampai ada yang kelupaan ya.`;return;}
-  } else if(!txs.length){b.className='alert show idle';b.innerHTML='👋 Yuk mulai catat keuangan kamu!';return;}
-  const mtx = getMonthTxs(now);
-  const inc = mtx.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
-  const exp = mtx.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
-  const r = inc>0?exp/inc:0;
-  if(r>=1){b.className='alert show danger';b.innerHTML='🚨 Pengeluaran melebihi pemasukan!';}
-  else if(r>=0.8){b.className='alert show warning';b.innerHTML=`⚠️ Pengeluaran udah ${Math.round(r*100)}% dari pemasukan!`;}
-  else b.classList.remove('show');
+    const diff = Math.floor((now - new Date(lastTx)) / 86400000);
+    if(diff >= 3) {
+      banner.className = 'alert show idle';
+      banner.innerHTML = 'Sudah ' + diff + ' hari belum catat transaksi. Jangan sampai ada yang kelupaan ya.';
+      return;
+    }
+  } else if(!txs.length) {
+    banner.className = 'alert show idle';
+    banner.innerHTML = 'Yuk mulai catat keuangan kamu.';
+    return;
+  }
+  const flow = getMonthCashflow(now);
+  const ratio = flow.income>0 ? flow.expense/flow.income : 0;
+  if(ratio >= 1) {
+    banner.className = 'alert show danger';
+    banner.innerHTML = 'Pengeluaran melebihi pemasukan bulan ini.';
+  } else if(ratio >= 0.8) {
+    banner.className = 'alert show warning';
+    banner.innerHTML = 'Pengeluaran sudah ' + Math.round(ratio*100) + '% dari pemasukan bulan ini.';
+  } else {
+    banner.classList.remove('show');
+  }
 }
 
-// DASHBOARD
 function renderDashboard() {
   const now = new Date();
-  const mtx = getMonthTxs(now);
-  const inc = mtx.filter(t=>t.type==='income' && !isInternalTransferTx(t)).reduce((s,t)=>s+t.amount,0);
-  const exp = mtx.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
-
+  const flow = getMonthCashflow(now);
   const saldoTotal = getRealBalance();
-  const danaTersisih = getReservedTotal();
-  const saldoTersedia = saldoTotal - danaTersisih;
-  const selisihAwal = saldoTotal - saldoAwal;
-  const targetAktif = targetSaldo>0 ? targetSaldo : saldoAwal;
-
-  const balEl = document.getElementById('balAmt');
-  balEl.textContent = fmtS(saldoTersedia);
-  balEl.style.color = saldoTersedia<0?'#ff6b6b':'white';
-  document.getElementById('balSub').textContent = `${MF[now.getMonth()]} ${now.getFullYear()} · Total ${fmtS(saldoTotal)} · Tersisih ${fmt(danaTersisih)} · Target ${fmt(targetAktif)}`;
-  document.getElementById('totalInc').textContent = fmt(inc);
-  document.getElementById('totalExp').textContent = fmt(exp);
-  document.getElementById('donutMonth').textContent = MF[now.getMonth()];
-
-  const r = inc>0?exp/inc:0;
-  const badge = document.getElementById('balBadge');
-  if(saldoTotal<saldoAwal){badge.textContent=`🚨 BOROS ${fmtS(selisihAwal)}`;badge.className='balance-badge badge-danger';}
-  else if(targetAktif>0 && saldoTotal>=targetAktif){badge.textContent=`📈 UNTUNG +${fmtN(saldoTotal-targetAktif)}`;badge.className='balance-badge badge-profit';}
-  else if(r>=1){badge.textContent='🚨 Boros!';badge.className='balance-badge badge-danger';}
-  else if(r>=0.8){badge.textContent='⚠️ Warning';badge.className='balance-badge badge-warning';}
-  else{badge.textContent='✅ Aman';badge.className='balance-badge badge-aman';}
-
-  renderDonut(mtx);
-  renderTop3(mtx);
-  renderGoals();
+  
+  if (isSimpleMode()) {
+    const balEl = document.getElementById('balAmt');
+    if(balEl) {
+      balEl.textContent = fmtS(saldoTotal);
+      balEl.style.color = saldoTotal < 0 ? '#ff6b6b' : 'white';
+    }
+    const balSub = document.getElementById('balSub');
+    if(balSub) balSub.textContent = `${MF[now.getMonth()]} ${now.getFullYear()} · Saldo utama ${fmt(saldoTotal)}`;
+    
+    const totalInc = document.getElementById('totalInc');
+    const totalExp = document.getElementById('totalExp');
+    if(totalInc) totalInc.textContent = fmt(flow.income);
+    if(totalExp) totalExp.textContent = fmt(flow.expense);
+    
+    const badge = document.getElementById('balBadge');
+    if(badge) {
+      const diff = saldoTotal - saldoAwal;
+      if(diff < 0) {
+        badge.textContent = 'Minus ' + fmtS(diff);
+        badge.className = 'balance-badge badge-danger';
+      } else if(diff > 0) {
+        badge.textContent = 'Naik +' + fmtN(diff);
+        badge.className = 'balance-badge badge-profit';
+      } else {
+        badge.textContent = 'Stabil';
+        badge.className = 'balance-badge badge-aman';
+      }
+    }
+    const balanceCard = document.querySelector('.balance-card');
+    if(balanceCard) balanceCard.removeAttribute('onclick');
+    document.querySelectorAll('.stat-card').forEach(card=>card.removeAttribute('onclick'));
+  } else {
+    const saldoSaku = getSakuBalance();
+    const danaGoal = getReservedGoalTotal();
+    const danaWajib = getReservedWajibTotal();
+    const danaTersisih = danaGoal + danaWajib;
+    const saldoTersedia = saldoTotal - danaTersisih;
+    const selisihAwal = saldoTotal - saldoAwal;
+    const targetAktif = targetSaldo>0 ? targetSaldo : saldoAwal;
+    
+    const balEl = document.getElementById('balAmt');
+    if(balEl) {
+      balEl.textContent = fmtS(saldoTersedia);
+      balEl.style.color = saldoTersedia<0 ? '#ff6b6b' : 'white';
+    }
+    const balSub = document.getElementById('balSub');
+    if(balSub) {
+      balSub.textContent = MF[now.getMonth()]+' '+now.getFullYear()+
+        ' | Bank '+fmtS(saldoTotal)+
+        ' | Saku '+fmt(saldoSaku)+
+        ' | Goal '+fmt(danaGoal)+
+        ' | Wajib '+fmt(danaWajib)+
+        ' | Target '+fmt(targetAktif);
+    }
+    
+    const totalInc = document.getElementById('totalInc');
+    const totalExp = document.getElementById('totalExp');
+    const donutMonth = document.getElementById('donutMonth');
+    if(totalInc) totalInc.textContent = fmt(flow.income);
+    if(totalExp) totalExp.textContent = fmt(flow.expense);
+    if(donutMonth) donutMonth.textContent = MF[now.getMonth()];
+    
+    const badge = document.getElementById('balBadge');
+    if(badge) {
+      const ratio = flow.income>0 ? flow.expense/flow.income : 0;
+      if(saldoTotal < saldoAwal) {
+        badge.textContent = 'BOROS ' + fmtS(selisihAwal);
+        badge.className = 'balance-badge badge-danger';
+      } else if(targetAktif>0 && saldoTotal>=targetAktif) {
+        badge.textContent = 'UNTUNG +' + fmtN(saldoTotal-targetAktif);
+        badge.className = 'balance-badge badge-profit';
+      } else if(ratio>=1) {
+        badge.textContent = 'Boros';
+        badge.className = 'balance-badge badge-danger';
+      } else if(ratio>=0.8) {
+        badge.textContent = 'Warning';
+        badge.className = 'balance-badge badge-warning';
+      } else {
+        badge.textContent = 'Aman';
+        badge.className = 'balance-badge badge-aman';
+      }
+    }
+    
+    const balanceCard = document.querySelector('.balance-card');
+    if(balanceCard) balanceCard.setAttribute('onclick', "switchTab('kelola')");
+    
+    renderDonut(flow.monthTxs);
+    renderTop3(flow.monthTxs);
+    renderGoals();
+    renderWajibFunds();
+  }
   checkAlert();
 }
 
@@ -1622,58 +1656,95 @@ function renderTop3(mtx) {
   `).join('');
 }
 
-// GOALS
 function renderGoals() {
   const el = document.getElementById('goalsList');
-  if(!goals.length){el.innerHTML='<div class="empty">Belum ada goals. Tap + untuk tambah!</div>';return;}
-  el.innerHTML = goals.map(g=>{
-    const pct = g.target>0?Math.min(100,Math.round(g.terkumpul/g.target*100)):0;
+  if(!el) return;
+  const activeGoals = getActiveGoals();
+  const usedGoal = getTodayVotedGoal();
+  const simple = isSimpleMode();
+  renderGoalVoteBar();
+  renderGoalHistory();
+  if(!activeGoals.length) {
+    el.innerHTML = '<div class="empty">Belum ada goal aktif. Tap + untuk tambah atau cek riwayat pembelian di bawah.</div>';
+    return;
+  }
+  el.innerHTML = activeGoals.map(g=>{
+    const pct = g.target>0 ? Math.min(100,Math.round(g.terkumpul/g.target*100)) : 0;
+    const icon = getGoalIcon(g.name);
+    const votedToday = usedGoal && usedGoal.id===g.id;
+    const tokenUsedByOther = usedGoal && usedGoal.id!==g.id;
+    const canVote = !usedGoal;
+    const lastVoteLabel = g.last_voted_at ? new Date(g.last_voted_at).toLocaleDateString('id-ID', {day:'2-digit', month:'short'}) : 'Belum pernah';
+    const chips = simple ? '' : [
+      `<span class="goal-chip vote">${g.vote_count||0} vote</span>`,
+      g.vote_streak>=2 ? `<span class="goal-chip hot">Streak ${g.vote_streak} hari</span>` : '',
+      g.last_voted_at ? `<span class="goal-chip">Terakhir ${lastVoteLabel}</span>` : ''
+    ].filter(Boolean).join('');
+    const softSignal = !simple && g.vote_count>=3 ? '<div class="goal-soft-signal">Ini sering kamu pilih.</div>' : '';
+    const voteLabel = votedToday ? 'Sudah kamu pilih hari ini' : (tokenUsedByOther ? 'Token hari ini habis' : 'Vote Hari Ini');
+    const extraActions = simple ? '' : `<div class="goal-meta">${chips}</div>
+      ${softSignal}
+      <div class="goal-actions">
+        <button class="goal-act-btn vote" onclick="voteGoal('${g.id}')" ${canVote?'':'disabled'}>${voteLabel}</button>
+        <button class="goal-act-btn buy" onclick="markGoalPurchased('${g.id}')">Saya Sudah Beli</button>
+      </div>`;
     return `<div class="goal-card">
       <div class="goal-hd">
-        <div class="goal-name">🎯 ${esc(g.name)}</div>
-        <div class="goal-pct">${pct}%</div>
-        <div class="goal-acts">
-          <button class="gbtn add" onclick="openSisihModal('${g.id}')">➕</button>
-          <button class="gbtn del" onclick="delGoal('${g.id}')">🗑️</button>
+        <div class="goal-name">${icon} ${esc(g.name)}</div>
+        <div class="goal-head-actions">
+          <div class="goal-pct">${pct}%</div>
+          <button class="gbtn add" onclick="openGoalModal('${g.id}')" title="Edit">Edit</button>
+          <button class="gbtn add" onclick="openSisihModal('${g.id}')" title="Sisihkan">+ Dana</button>
+          <button class="gbtn del" onclick="delGoal('${g.id}')" title="Hapus">Hapus</button>
         </div>
       </div>
       <div class="prog-track"><div class="prog-fill" style="width:${pct}%"></div></div>
       <div class="goal-ft"><span>Terkumpul: ${fmt(g.terkumpul)}</span><span>Target: ${fmt(g.target)}</span></div>
-      ${pct>=100?'<div style="font-size:12px;color:var(--green);font-weight:700;margin-top:6px;text-align:center;">🎉 Target tercapai!</div>':''}
+      ${extraActions}
+      ${pct>=100?'<div style="font-size:12px;color:var(--green);font-weight:700;margin-top:6px;text-align:center;">Target tercapai!</div>':''}
     </div>`;
   }).join('');
 }
 
-function renderGoals() {
-  const el = document.getElementById('goalsList');
-  if(!goals.length){el.innerHTML='<div class="empty">Belum ada goals. Tap + untuk tambah!</div>';return;}
-  el.innerHTML = goals.map(g=>{
-    const pct = g.target>0?Math.min(100,Math.round(g.terkumpul/g.target*100)):0;
-    const icon = getGoalIcon(g.name);
-    return `<div class="goal-card">
-      <div class="goal-hd">
-        <div class="goal-name">${icon} ${esc(g.name)}</div>
-        <div class="goal-pct">${pct}%</div>
-        <div class="goal-acts">
-          <button class="gbtn add" onclick="openSisihModal('${g.id}')">➕</button>
-          <button class="gbtn del" onclick="delGoal('${g.id}')">🗑️</button>
-        </div>
-      </div>
-      <div class="prog-track"><div class="prog-fill" style="width:${pct}%"></div></div>
-      <div class="goal-ft"><span>Terkumpul: ${fmt(g.terkumpul)}</span><span>Target: ${fmt(g.target)}</span></div>
-      ${pct>=100?'<div style="font-size:12px;color:var(--green);font-weight:700;margin-top:6px;text-align:center;">🎉 Target tercapai!</div>':''}
-    </div>`;
-  }).join('');
+function openGoalModal(id=null){
+  editGoalId = id;
+  const titleEl = document.querySelector('#goalModal .mtitle');
+  const goal = id ? goals.find(g=>g.id===id) : null;
+  if(titleEl) titleEl.textContent = goal ? 'Edit Goal' : 'Tambah Goal';
+  document.getElementById('goalName').value = goal ? goal.name : '';
+  document.getElementById('goalAmt').value = goal ? goal.target.toLocaleString('id-ID') : '';
+  document.getElementById('goalAmtHint').textContent = goal ? '= '+fmt(goal.target) : '';
+  openModal('goalModal');
 }
-function openGoalModal(){document.getElementById('goalName').value='';document.getElementById('goalAmt').value='';document.getElementById('goalAmtHint').textContent='';openModal('goalModal');}
-function saveGoal(){
-  const n=document.getElementById('goalName').value.trim();
-  const t=parseA(document.getElementById('goalAmt').value);
-  if(!n)return alert('Nama goal wajib!');if(!t)return alert('Target wajib!');
-  goals.push({id:'g'+Date.now(),name:n,target:t,terkumpul:0});
-  save();renderGoals();closeModal('goalModal');
+
+function saveGoal() {
+  const name = document.getElementById('goalName').value.trim();
+  const target = parseA(document.getElementById('goalAmt').value);
+  if(!name) return alert('Nama goal wajib!');
+  if(!target) return alert('Target wajib!');
+  if(editGoalId) {
+    const goal = goals.find(x=>x.id===editGoalId);
+    if(goal) {
+      goal.name = name;
+      goal.target = target;
+      if(goal.terkumpul>target) goal.terkumpul = target;
+    }
+  } else {
+    goals.push(normalizeGoal({id:'g'+Date.now(), name, target, terkumpul:0}));
+  }
+  save();
+  closeModal('goalModal');
+  refreshAllViews();
 }
-function delGoal(id){askConfirm('Hapus goal ini?',()=>{goals=goals.filter(g=>g.id!==id);save();renderGoals();renderDashboard();},{title:'Hapus Goal',okText:'Hapus',danger:true});}
+
+function delGoal(id) {
+  askConfirm('Hapus goal ini?', ()=>{
+    goals = goals.filter(g=>g.id!==id);
+    save();
+    refreshAllViews();
+  }, {title:'Hapus Goal', okText:'Hapus', danger:true});
+}
+
 function openSisihModal(id){
   const g=goals.find(x=>x.id===id);if(!g)return;
   document.getElementById('sisihId').value=id;
@@ -1682,17 +1753,22 @@ function openSisihModal(id){
   document.getElementById('sisihAmt').value='';document.getElementById('sisihAmtHint').textContent='';
   openModal('sisihModal');
 }
-function saveSisih(){
-  const id=document.getElementById('sisihId').value;
-  const a=parseA(document.getElementById('sisihAmt').value);
-  if(!a)return alert('Jumlah wajib!');
-  const g=goals.find(x=>x.id===id);
+
+function saveSisih() {
+  const id = document.getElementById('sisihId').value;
+  const amount = parseA(document.getElementById('sisihAmt').value);
+  if(!amount) return alert('Jumlah wajib!');
+  const goal = goals.find(x=>x.id===id);
+  if(!goal) return;
   const saldoTersedia = getRealBalance() - getReservedTotal();
-  if(a>saldoTersedia)return alert('Saldo tersedia tidak cukup untuk disisihkan!');
-  if(g){g.terkumpul+=a;save();renderGoals();renderDashboard();closeModal('sisihModal');}
+  if(amount>saldoTersedia) return alert('Saldo tersedia tidak cukup untuk disisihkan!');
+  goal.terkumpul += amount;
+  lastTx = new Date().toISOString();
+  save();
+  closeModal('sisihModal');
+  refreshAllViews();
 }
 
-// HUTANG PIUTANG
 function switchHP(tab){
   curHP=tab;
   document.getElementById('tabPiutang').className='hp-tab'+(tab==='piutang'?' active':'');
@@ -1700,13 +1776,28 @@ function switchHP(tab){
   updateFab();
   renderHP();
 }
-function renderHP(){
-  const filtered=hp.filter(h=>h.type===curHP);
-  const el=document.getElementById('hpList');
-  const total=filtered.filter(h=>!h.lunas).reduce((s,h)=>s+h.amount,0);
-  document.getElementById('hpSum').textContent=filtered.length?(curHP==='piutang'?`Belum dibayar: ${fmt(total)}`:`Total hutangmu: ${fmt(total)}`):'';
-  if(!filtered.length){el.innerHTML=`<div class="tx-empty">${curHP==='piutang'?'Belum ada piutang':'Belum ada hutang'}</div>`;return;}
-  el.innerHTML=filtered.sort((a,b)=>new Date(b.date)-new Date(a.date)).map(h=>`
+
+function renderHP() {
+  const filtered = hp.filter(h=>h.type===curHP);
+  const el = document.getElementById('hpList');
+  const total = filtered.filter(h=>!h.lunas).reduce((sum,h)=>sum+h.amount,0);
+  const cashHold = filtered.filter(h=>h.type==='piutang' && h.lunas && h.settleState!=='banked').reduce((sum,h)=>sum+h.amount,0);
+  const sumEl = document.getElementById('hpSum');
+  if(sumEl) {
+    sumEl.textContent = filtered.length
+      ? (curHP==='piutang'
+        ? `Belum dibayar: ${fmt(total)}${cashHold?` | Di saku: ${fmt(cashHold)}`:''}`
+        : `Total hutangmu: ${fmt(total)}`)
+      : '';
+  }
+  if(!el) return;
+  if(!filtered.length) {
+    el.innerHTML = `<div class="tx-empty">${curHP==='piutang'?'Belum ada piutang':'Belum ada hutang'}</div>`;
+    return;
+  }
+  el.innerHTML = filtered.sort((a,b)=>new Date(b.date)-new Date(a.date)).map(h=>{
+    const status = getHPVisual(h);
+    return `
     <div class="hp-item">
       <div class="hp-av ${h.type}">${esc(h.name.charAt(0).toUpperCase())}</div>
       <div class="hp-info">
@@ -1715,46 +1806,146 @@ function renderHP(){
       </div>
       <div class="hp-right">
         <div class="hp-amt ${h.type}">${fmt(h.amount)}</div>
-        <span class="hp-status ${h.lunas?'lunas':'belum'}">${h.lunas?'✅ Lunas':'⏳ Belum'}</span>
+        <span class="hp-status ${status.cls}">${status.text}</span>
       </div>
       <div class="hp-acts">
-        ${!h.lunas?`<button class="hbtn lunas" onclick="tandaiLunas('${h.id}')">✅</button>`:''}
-        <button class="hbtn del" onclick="delHP('${h.id}')">🗑️</button>
+        ${!h.lunas?`<button class="hbtn lunas" onclick="tandaiLunas('${h.id}')">OK</button>`:''}
+        ${(h.type==='piutang' && h.lunas && h.settleState!=='banked')?`<button class="hbtn bank" onclick="transferPiutangToBank('${h.id}')">Bank</button>`:''}
+        <button class="hbtn del" onclick="delHP('${h.id}')">Del</button>
       </div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 }
-function openHPModal(){document.getElementById('hpModalTitle').textContent=curHP==='piutang'?'Tambah Piutang':'Tambah Hutang';document.getElementById('hpName').value='';document.getElementById('hpAmt').value='';document.getElementById('hpAmtHint').textContent='';document.getElementById('hpNote').value='';openModal('hpModal');}
-function saveHP(){const n=document.getElementById('hpName').value.trim();const a=parseA(document.getElementById('hpAmt').value);const note=document.getElementById('hpNote').value.trim();if(!n)return alert('Nama wajib!');if(!a)return alert('Nominal wajib!');hp.push({id:'hp'+Date.now(),type:curHP,name:n,amount:a,note,date:new Date().toISOString(),lunas:false});save();renderHP();closeModal('hpModal');}
-function tandaiLunas(id){askConfirm('Tandai catatan ini sebagai lunas?',()=>{const h=hp.find(x=>x.id===id);if(h){h.lunas=true;h.tanggalLunas=new Date().toISOString();}save();renderHP();},{title:'Tandai Lunas',okText:'Lunaskan'});}
-function delHP(id){askConfirm('Hapus catatan hutang/piutang ini?',()=>{hp=hp.filter(h=>h.id!==id);save();renderHP();},{title:'Hapus Catatan',okText:'Hapus',danger:true});}
 
-// SALDO
-function openSaldoModal(){
-  document.getElementById('saldoInp').value=saldoAwal>0?saldoAwal.toLocaleString('id-ID'):'';
-  document.getElementById('saldoHint').textContent=saldoAwal>0?'= '+fmt(saldoAwal):'';
-  openModal('saldoModal');
+function openHPModal(){document.getElementById('hpModalTitle').textContent=curHP==='piutang'?'Tambah Piutang':'Tambah Hutang';document.getElementById('hpName').value='';document.getElementById('hpAmt').value='';document.getElementById('hpAmtHint').textContent='';document.getElementById('hpNote').value='';openModal('hpModal');}
+
+function saveHP() {
+  const name = document.getElementById('hpName').value.trim();
+  const amount = parseA(document.getElementById('hpAmt').value);
+  const note = document.getElementById('hpNote').value.trim();
+  if(!name) return alert('Nama wajib!');
+  if(!amount) return alert('Nominal wajib!');
+  if(curHP==='piutang') {
+    const saldoTersedia = getRealBalance() - getReservedTotal();
+    if(amount>saldoTersedia) return alert('Saldo tersedia tidak cukup untuk membuat piutang ini.');
+  }
+  const hpId = 'hp'+Date.now();
+  let createTx = null;
+  if(curHP==='piutang') {
+    createTx = addSystemTx({
+      type:'expense',
+      amount:amount,
+      catId:getExpenseCatId(),
+      note: note || ('Piutang ke ' + name),
+      source:'hp_create_piutang',
+      sourceId:hpId
+    });
+  } else {
+    createTx = addSystemTx({
+      type:'income',
+      amount:amount,
+      catId:getIncomeCatId(),
+      note: note || ('Dana hutang dari ' + name),
+      source:'hp_create_hutang',
+      sourceId:hpId
+    });
+  }
+  hp.push(normalizeHPItem({
+    id:hpId,
+    type:curHP,
+    name:name,
+    amount:amount,
+    note:note,
+    date:new Date().toISOString(),
+    lunas:false,
+    settleState:'pending',
+    createTxId:createTx ? createTx.id : null
+  }));
+  lastTx = new Date().toISOString();
+  save();
+  closeModal('hpModal');
+  refreshAllViews();
 }
-function saveSaldo(){
-  saldoAwal=parseA(document.getElementById('saldoInp').value);
-  if(!targetSaldo || targetSaldo<saldoAwal) targetSaldo = saldoAwal;
-  save();renderSaldo();renderTargetSaldo();renderDashboard();closeModal('saldoModal');
+
+function tandaiLunas(id) {
+  const item = hp.find(x=>x.id===id);
+  if(!item) return;
+  const message = item.type==='piutang'
+    ? 'Tandai piutang ini lunas dan masukkan dulu ke Saldo Saku?'
+    : 'Tandai catatan ini sebagai lunas?';
+  askConfirm(message, ()=>{
+    item.lunas = true;
+    item.tanggalLunas = new Date().toISOString();
+    if(item.type==='piutang') {
+      item.settleState = 'cash';
+      addSakuTx('in', item.amount, 'Pelunasan piutang ' + item.name, {source:'hp_lunas', sourceId:item.id});
+    } else {
+      const settleTx = addSystemTx({
+        type:'expense',
+        amount:item.amount,
+        catId:getExpenseCatId(),
+        note:item.note || ('Pelunasan hutang ke ' + item.name),
+        source:'hp_settle_hutang',
+        sourceId:item.id
+      });
+      item.settleTxId = settleTx.id;
+    }
+    lastTx = new Date().toISOString();
+    save();
+    refreshAllViews();
+  }, {title:'Tandai Lunas', okText:item.type==='piutang'?'Masuk Saku':'Lunaskan'});
 }
-function renderSaldo(){document.getElementById('saldoAwalVal').textContent=fmt(saldoAwal);}
-function renderTargetSaldo(){document.getElementById('targetSaldoVal').textContent=fmt(targetSaldo>0?targetSaldo:saldoAwal);}
-function resetSaldo(){
-  askConfirm('Reset saldo ke nol? Transaksi tetap ada.',()=>{
-    saldoAwal=0;
-    storageSet('dk_saldo','0');
-    save();renderSaldo();renderTargetSaldo();renderDashboard();
-  },{title:'Reset Saldo',okText:'Reset',danger:true});
+
+function delHP(id) {
+  askConfirm('Hapus catatan hutang/piutang ini?', ()=>{
+    sakuTxs = sakuTxs.filter(t=>t.sourceId!==id);
+    txs = txs.filter(t=>t.sourceId!==id);
+    hp = hp.filter(h=>h.id!==id);
+    save();
+    refreshAllViews();
+  }, {title:'Hapus Catatan', okText:'Hapus', danger:true});
 }
-function openTargetModal(){
-  const current=targetSaldo>0?targetSaldo:saldoAwal;
-  document.getElementById('targetInp').value=current>0?current.toLocaleString('id-ID'):'';
-  document.getElementById('targetHint').textContent=current>0?'= '+fmt(current):'';
+
+function openSaldoModal() {
+  openWalletModal();
+}
+
+function saveSaldo() {
+  saveWalletModal();
+}
+
+function renderSaldo() {
+  const value = fmt(saldoAwal);
+  const a = document.getElementById('saldoAwalVal');
+  const b = document.getElementById('saldoAwalValProxy');
+  if(a) a.textContent = value;
+  if(b) b.textContent = value;
+}
+
+function renderTargetSaldo() {
+  const value = fmt(targetSaldo>0?targetSaldo:getOperationalOpeningBalance());
+  const a = document.getElementById('targetSaldoVal');
+  const b = document.getElementById('targetSaldoValProxy');
+  if(a) a.textContent = value;
+  if(b) b.textContent = value;
+}
+
+function resetSaldo() {
+  askConfirm('Reset dompet operasional ke nol? Dompet lain tetap aman.', ()=>{
+    wallets.operational.openingBalance = 0;
+    saldoAwal = 0;
+    save();
+    refreshAllViews();
+  }, {title:'Reset Operasional', okText:'Reset', danger:true});
+}
+
+function openTargetModal() {
+  const current = targetSaldo>0 ? targetSaldo : getOperationalOpeningBalance();
+  document.getElementById('targetInp').value = current>0 ? current.toLocaleString('id-ID') : '';
+  document.getElementById('targetHint').textContent = current>0 ? '= ' + fmt(current) : '';
   openModal('targetModal');
 }
+
 function saveTargetSaldo(){
   const val=parseA(document.getElementById('targetInp').value);
   if(!val)return alert('Target wajib diisi!');
@@ -1762,48 +1953,59 @@ function saveTargetSaldo(){
   save();renderTargetSaldo();renderDashboard();closeModal('targetModal');
 }
 
-// TRANSAKSI
-function renderTxList(){
-  document.getElementById('txMonthLabel').textContent=MF[curMonth.getMonth()]+' '+curMonth.getFullYear();
-  const mtx=getMonthTxs(curMonth).sort((a,b)=>new Date(b.date)-new Date(a.date));
-  const el=document.getElementById('txList');
-  if(!mtx.length){el.innerHTML='<div class="tx-empty">📭 Belum ada transaksi bulan ini</div>';return;}
-  const grouped={};
-  mtx.forEach(t=>{const d=new Date(t.date);const k=d.toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long'});if(!grouped[k])grouped[k]=[];grouped[k].push(t);});
-  el.innerHTML=Object.entries(grouped).map(([date,txList])=>`
+function renderTxList() {
+  const label = document.getElementById('txMonthLabel');
+  if(label) label.textContent = MF[curMonth.getMonth()]+' '+curMonth.getFullYear();
+  const el = document.getElementById('txList');
+  if(!el) return;
+  const monthTxs = getMonthTxs(curMonth).sort((a,b)=>new Date(b.date)-new Date(a.date));
+  if(!monthTxs.length) {
+    el.innerHTML = '<div class="tx-empty">Belum ada transaksi bulan ini</div>';
+    return;
+  }
+  const grouped = {};
+  monthTxs.forEach(t=>{
+    const d = new Date(t.date);
+    const k = d.toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long'});
+    if(!grouped[k]) grouped[k] = [];
+    grouped[k].push(t);
+  });
+  el.innerHTML = Object.entries(grouped).map(([date, dayTxs])=>`
     <div class="tx-date-group">
       <div class="tx-date-label">${esc(date)}</div>
-      ${txList.map(t=>{const c=cats.find(x=>x.id===t.catId);return `
-        <div class="tx-item" id="tx-${t.id}">
-          <div class="tx-emoji" onclick="openEditTx('${t.id}')">${c?.emoji||'📦'}</div>
-          <div class="tx-info" onclick="openEditTx('${t.id}')">
-            <div class="tx-cat">${esc(c?.name||'Lain-lain')}</div>
-            <div class="tx-note">${esc(t.note||'—')}</div>
+      ${dayTxs.map(t=>{
+        const c = cats.find(x=>x.id===t.catId);
+        return `
+          <div class="tx-item" id="tx-${t.id}">
+            <div class="tx-emoji" onclick="openEditTx('${t.id}')">${c?.emoji || '📦'}</div>
+            <div class="tx-info" onclick="openEditTx('${t.id}')">
+              <div class="tx-cat">${esc(c?.name || 'Lain-lain')}</div>
+              <div class="tx-note">${esc(t.note || 'Transaksi manual')}</div>
+            </div>
+            <div class="tx-right">
+              <div class="tx-amt ${t.type}">${t.type==='income'?'+':'-'}${fmt(t.amount)}</div>
+              <div class="tx-time">${new Date(t.date).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})}</div>
+            </div>
+            <div class="tx-del" onclick="delTx('${t.id}')">🗑️</div>
           </div>
-          <div class="tx-right">
-            <div class="tx-amt ${t.type}">${t.type==='income'?'+':'-'}${fmt(t.amount)}</div>
-            <div class="tx-time">${new Date(t.date).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})}</div>
-          </div>
-          <div class="tx-del" onclick="delTx('${t.id}')">🗑️</div>
-        </div>
-      `;}).join('')}
+        `;
+      }).join('')}
     </div>
   `).join('');
-  el.querySelectorAll('.tx-item').forEach(item=>{
-    let sx;
-    item.addEventListener('touchstart',e=>{sx=e.touches[0].clientX;});
-    item.addEventListener('touchend',e=>{if(sx-e.changedTouches[0].clientX>50)item.classList.add('swiped');else item.classList.remove('swiped');});
-  });
 }
+
 function changeMonth(d){curMonth=new Date(curMonth.getFullYear(),curMonth.getMonth()+d,1);renderTxList();}
-function delTx(id){
+
+function delTx(id) {
   const target = txs.find(t=>t.id===id);
   if(target && isSystemTx(target)) return alert('Transaksi sistem tidak bisa dihapus dari menu ini.');
-  askConfirm('Hapus transaksi ini?',()=>{
-    txs=txs.filter(t=>t.id!==id);
-    save();renderTxList();renderDashboard();
-  },{title:'Hapus Transaksi',okText:'Hapus',danger:true});
+  askConfirm('Hapus transaksi ini?', ()=>{
+    txs = txs.filter(t=>t.id!==id);
+    save();
+    refreshAllViews();
+  }, {title:'Hapus Transaksi', okText:'Hapus', danger:true});
 }
+
 function openEditTx(id){
   const t=txs.find(x=>x.id===id);if(!t)return;
   if(isSystemTx(t)) return alert('Transaksi sistem tidak bisa diedit dari menu ini.');
@@ -1816,13 +2018,16 @@ function openEditTx(id){
   setType(t.type);selCat=t.catId;renderCatGrid();openModal('txModal');
 }
 
-// STATS
-function renderStats(){
-  const now=new Date();const months=[];
-  for(let i=5;i>=0;i--)months.push(new Date(now.getFullYear(),now.getMonth()-i,1));
-  const data=months.map(m=>{const tx=getMonthTxs(m);return{label:MN[m.getMonth()],inc:tx.filter(t=>t.type==='income' && !isInternalTransferTx(t)).reduce((s,t)=>s+t.amount,0),exp:tx.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0)};});
-  const max=Math.max(...data.map(d=>Math.max(d.inc,d.exp)),1);
-  document.getElementById('barChart').innerHTML=data.map(d=>`
+function renderStats() {
+  const now = new Date();
+  const months = [];
+  for(let i=5;i>=0;i--) months.push(new Date(now.getFullYear(), now.getMonth()-i, 1));
+  const data = months.map(m=>{
+    const flow = getMonthCashflow(m);
+    return {label:MN[m.getMonth()], inc:flow.income, exp:flow.expense};
+  });
+  const max = Math.max(...data.map(d=>Math.max(d.inc,d.exp)),1);
+  const html = data.map(d=>`
     <div class="bar-group">
       <div class="bars">
         <div class="bar inc-bar" style="height:${Math.round(d.inc/max*90)}px"></div>
@@ -1831,48 +2036,106 @@ function renderStats(){
       <div class="bar-lbl">${d.label}</div>
     </div>
   `).join('');
+  const mainChart = document.getElementById('barChart');
+  const proxyChart = document.getElementById('barChartProxy');
+  if(mainChart) mainChart.innerHTML = html;
+  if(proxyChart) proxyChart.innerHTML = html;
 }
 
-// KATEGORI
-function renderCats(){document.getElementById('catList').innerHTML=cats.map(c=>`
-  <div class="cat-item">
-    <div class="cat-emoji">${c.emoji}</div>
-    <div class="cat-name">${esc(c.name)}</div>
-    <div class="cat-type ${c.type}">${c.type==='income'?'Pemasukan':'Pengeluaran'}</div>
-    <div class="cat-acts">
-      <button class="cbtn edit" onclick="editCat('${c.id}')">✏️</button>
-      <button class="cbtn del" onclick="delCat('${c.id}')">🗑️</button>
+function renderCats() {
+  const list = getCoreVisibleCategories().map(c=>`
+    <div class="cat-item">
+      <div class="cat-emoji">${c.emoji}</div>
+      <div class="cat-name">${esc(c.name)}</div>
+      <div class="cat-type ${c.type}">${c.type==='income'?'Pemasukan':'Pengeluaran'}</div>
+      <div class="cat-acts">
+        <button class="cbtn edit" onclick="editCat('${c.id}')">✏️</button>
+        <button class="cbtn del" onclick="delCat('${c.id}')">🗑️</button>
+      </div>
     </div>
-  </div>
-`).join('');}
+  `).join('');
+  const a = document.getElementById('catList');
+  const b = document.getElementById('catListProxy');
+  if(a) a.innerHTML = list;
+  if(b) b.innerHTML = list;
+}
+
 function openAddCatModal(){editCatId=null;document.getElementById('catModalTitle').textContent='Tambah Kategori';document.getElementById('catEmoji').value='';document.getElementById('catName').value='';document.getElementById('catType').value='expense';openModal('catModal');}
+
 function editCat(id){const c=cats.find(x=>x.id===id);if(!c)return;editCatId=id;document.getElementById('catModalTitle').textContent='Edit Kategori';document.getElementById('catEmoji').value=c.emoji;document.getElementById('catName').value=c.name;document.getElementById('catType').value=c.type;openModal('catModal');}
+
 function delCat(id){
   if(txs.some(t=>t.catId===id)) return alert('Kategori ini masih dipakai transaksi, jadi belum bisa dihapus.');
   askConfirm('Hapus kategori ini?',()=>{cats=cats.filter(c=>c.id!==id);save();renderCats();},{title:'Hapus Kategori',okText:'Hapus',danger:true});
 }
+
 function saveCat(){const e=document.getElementById('catEmoji').value.trim()||'📦';const n=document.getElementById('catName').value.trim();const t=document.getElementById('catType').value;if(!n)return alert('Nama wajib!');if(editCatId){const c=cats.find(x=>x.id===editCatId);c.emoji=e;c.name=n;c.type=t;}else cats.push({id:'c'+Date.now(),name:n,emoji:e,type:t});save();renderCats();closeModal('catModal');}
 
-// MODAL TX
 function openModal(id){document.getElementById(id).classList.add('open');}
+
 function closeModal(id){document.getElementById(id).classList.remove('open');}
-function openTxModal(){document.getElementById('txModalTitle').textContent='Tambah Transaksi';document.getElementById('txEditId').value='';curType='expense';selCat=null;document.getElementById('txAmt').value='';document.getElementById('txAmtHint').textContent='';document.getElementById('txNote').value='';document.getElementById('txDate').value=new Date().toISOString().split('T')[0];setType('expense');openModal('txModal');}
-function setType(t){curType=t;selCat=null;document.getElementById('btnExp').className='tbtn'+(t==='expense'?' active exp':'');document.getElementById('btnInc').className='tbtn'+(t==='income'?' active inc':'');renderCatGrid();}
-function renderCatGrid(){document.getElementById('catGrid').innerHTML=cats.filter(c=>c.type===curType).map(c=>`<div class="cat-opt${selCat===c.id?' sel':''}" onclick="selCatFn('${c.id}')"><div class="cat-opt-icon">${c.emoji}</div><div class="cat-opt-name">${esc(c.name)}</div></div>`).join('');}
-function selCatFn(id){selCat=id;renderCatGrid();}
-function saveTx(){
-  const a=parseA(document.getElementById('txAmt').value);if(!a)return alert('Nominal harus diisi!');
-  if(!selCat)return alert('Pilih kategori dulu!');
-  const note=document.getElementById('txNote').value.trim();
-  const date=document.getElementById('txDate').value||new Date().toISOString().split('T')[0];
-  const editId=document.getElementById('txEditId').value;
-  if(editId){const t=txs.find(x=>x.id===editId);if(t){if(isSystemTx(t)) return alert('Transaksi sistem tidak bisa diedit.');const prevTime=(new Date(t.date).toTimeString()||'00:00:00').slice(0,8);t.type=curType;t.amount=a;t.catId=selCat;t.note=note;t.date=new Date(date+'T'+prevTime).toISOString();}}
-  else{txs.push({id:'t'+Date.now(),type:curType,amount:a,catId:selCat,note,date:new Date(date+'T'+new Date().toTimeString().slice(0,8)).toISOString()});lastTx=new Date().toISOString();}
-  save();closeModal('txModal');renderDashboard();renderTxList();
+
+function openTxModal() {
+  document.getElementById('txModalTitle').textContent='Tambah Transaksi Operasional';
+  document.getElementById('txEditId').value='';
+  curType='expense';
+  selCat=null;
+  document.getElementById('txAmt').value='';
+  document.getElementById('txAmtHint').textContent='';
+  document.getElementById('txNote').value='';
+  document.getElementById('txDate').value=new Date().toISOString().split('T')[0];
+  setType('expense');
+  openModal('txModal');
 }
 
-// DETAIL MODAL
-let curDetailFilter = 'all';
+function setType(t){curType=t;selCat=null;document.getElementById('btnExp').className='tbtn'+(t==='expense'?' active exp':'');document.getElementById('btnInc').className='tbtn'+(t==='income'?' active inc':'');renderCatGrid();}
+
+function renderCatGrid() {
+  const options = getCoreVisibleCategories(curType).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''), 'id'));
+  document.getElementById('catGrid').innerHTML = options.map(c=>`<div class="cat-opt${selCat===c.id?' sel':''}" onclick="selCatFn('${c.id}')"><div class="cat-opt-icon">${c.emoji}</div><div class="cat-opt-name">${esc(c.name)}</div></div>`).join('');
+}
+
+function selCatFn(id){selCat=id;renderCatGrid();}
+
+function saveTx() {
+  const amount = parseA(document.getElementById('txAmt').value);
+  if(!amount) return alert('Nominal harus diisi!');
+  if(!selCat) return alert('Pilih kategori dulu!');
+  const note = document.getElementById('txNote').value.trim();
+  const date = document.getElementById('txDate').value || new Date().toISOString().split('T')[0];
+  const editId = document.getElementById('txEditId').value;
+  const category = cats.find(cat=>cat.id===selCat);
+  const isBusinessTopup = category?.type==='expense' && String(category?.name||'').toLowerCase()==='kulakan/modal';
+  const basePayload = {
+    type: curType,
+    amount,
+    catId: selCat,
+    note,
+    walletId: 'operational',
+    flowTag: isBusinessTopup ? 'business_topup' : ''
+  };
+  if(editId) {
+    const target = txs.find(x=>x.id===editId);
+    if(target) {
+      if(isSystemTx(target)) return alert('Transaksi sistem tidak bisa diedit.');
+      const prevTime = (new Date(target.date).toTimeString() || '00:00:00').slice(0,8);
+      Object.assign(target, basePayload);
+      target.date = new Date(date+'T'+prevTime).toISOString();
+    }
+  } else {
+    txs.push(normalizeTxItem({
+      id:'t'+Date.now(),
+      ...basePayload,
+      date:new Date(date+'T'+new Date().toTimeString().slice(0,8)).toISOString(),
+      source:'manual'
+    }));
+    lastTx = new Date().toISOString();
+  }
+  save();
+  closeModal('txModal');
+  refreshAllViews();
+}
+
 function openDetailModal(filter) {
   curDetailFilter = filter;
   const titles = {all:'💰 Semua Transaksi', income:'📈 Pemasukan', expense:'📉 Pengeluaran'};
@@ -1880,52 +2143,65 @@ function openDetailModal(filter) {
   renderDetailList();
   openModal('detailModal');
 }
+
 function renderDetailList() {
-  const filtered = curDetailFilter==='all' ? txs : txs.filter(t=>t.type===curDetailFilter);
-  const sorted = [...filtered].sort((a,b)=>new Date(b.date)-new Date(a.date));
+  const sorted = getTimelineItems(curDetailFilter);
   const el = document.getElementById('detailList');
-  if(!sorted.length){el.innerHTML='<div class="empty">Belum ada transaksi</div>';return;}
-  el.innerHTML = sorted.map(t=>{
-    const c = cats.find(x=>x.id===t.catId);
+  if(!sorted.length){el.innerHTML='<div class="empty">Belum ada aktivitas</div>';return;}
+  el.innerHTML = sorted.map(item=>{
+    const view = formatTimelineItem(item);
     return `<div style="background:var(--card2);border-radius:10px;padding:12px;display:flex;align-items:center;gap:10px;">
-      <div style="font-size:20px;width:36px;height:36px;background:var(--card);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${c?.emoji||'📦'}</div>
+      <div style="font-size:20px;width:36px;height:36px;background:var(--card);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${view.emoji}</div>
       <div style="flex:1;min-width:0;">
-        <div style="font-size:13px;font-weight:700;">${esc(c?.name||'Lain-lain')}</div>
-        <div style="font-size:11px;color:var(--text2);">${esc(t.note||'—')} · ${new Date(t.date).toLocaleDateString('id-ID',{day:'numeric',month:'short'})}</div>
+        <div style="font-size:13px;font-weight:700;">${view.title}</div>
+        <div style="font-size:11px;color:var(--text2);">${view.subtitle} · ${new Date(item.date).toLocaleDateString('id-ID',{day:'numeric',month:'short'})}</div>
+        ${view.badge?`<div style="display:inline-block;font-size:9px;font-weight:800;padding:2px 6px;border-radius:999px;background:var(--blue-light);color:var(--blue);margin-top:4px;">${view.badge}</div>`:''}
+        <div style="font-size:10px;color:var(--text2);font-weight:700;margin-top:3px;">${view.meta}</div>
       </div>
       <div style="text-align:right;flex-shrink:0;">
-        <div style="font-size:13px;font-weight:800;font-family:'DM Mono',monospace;color:${t.type==='income'?'var(--green)':'var(--red)'};">${t.type==='income'?'+':'-'}${fmt(t.amount)}</div>
+        <div style="font-size:13px;font-weight:800;font-family:'DM Mono',monospace;color:${view.amountClass==='income'?'var(--green)':view.amountClass==='expense'?'var(--red)':'var(--blue)'};">${view.amountText}</div>
       </div>
-      <button onclick="delTxDetail('${t.id}')" style="width:28px;height:28px;border-radius:7px;border:none;background:var(--red-light);color:var(--red);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;">🗑️</button>
+      ${view.deletable?`<button onclick="delTxDetail('${item.id}')" style="width:28px;height:28px;border-radius:7px;border:none;background:var(--red-light);color:var(--red);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;">🗑️</button>`:''}
     </div>`;
   }).join('');
 }
+
 function delTxDetail(id) {
   const target = txs.find(t=>t.id===id);
   if(target && isSystemTx(target)) return alert('Transaksi sistem tidak bisa dihapus dari menu ini.');
-  askConfirm('Hapus transaksi ini?',()=>{
+  askConfirm('Hapus transaksi ini?', ()=>{
     txs = txs.filter(t=>t.id!==id);
-    save();renderDashboard();renderTxList();renderDetailList();
-  },{title:'Hapus Transaksi',okText:'Hapus',danger:true});
+    save();
+    refreshAllViews();
+  }, {title:'Hapus Transaksi', okText:'Hapus', danger:true});
 }
+
 function hapusSemua() {
-  const label = curDetailFilter==='all'?'semua transaksi manual':curDetailFilter==='income'?'semua pemasukan manual':'semua pengeluaran manual';
+  const label = curDetailFilter==='all' ? 'semua transaksi manual' : curDetailFilter==='income' ? 'semua pemasukan manual' : 'semua pengeluaran manual';
   const removable = curDetailFilter==='all'
     ? txs.filter(t=>!isSystemTx(t))
     : txs.filter(t=>t.type===curDetailFilter && !isSystemTx(t));
   if(!removable.length) return alert('Tidak ada transaksi manual yang bisa dihapus pada tampilan ini.');
-  askConfirm(`Hapus ${label}? Transaksi sistem akan tetap aman.`,()=>{
+  askConfirm('Hapus '+label+'? Transaksi sistem akan tetap aman.', ()=>{
     const removableIds = new Set(removable.map(t=>t.id));
     txs = txs.filter(t=>!removableIds.has(t.id));
-    save();renderDashboard();renderTxList();renderDetailList();
-  },{title:'Hapus Data',okText:'Hapus',danger:true});
+    save();
+    refreshAllViews();
+  }, {title:'Hapus Data', okText:'Hapus', danger:true});
 }
 
 function exportData() {
   const payload = {
     exportedAt: new Date().toISOString(),
-    version: 1,
-    data: {txs, cats, goals, wajibFunds, hp, sakuTxs, saldoAwal, lastTx, targetSaldo, appPreferences, theme: document.documentElement.getAttribute('data-theme')||'light', themeMode: savedThemeMode}
+    version: 'core-basic',
+    data: {
+      txs: getCoreManualTxs(),
+      cats: getCoreVisibleCategories(),
+      saldoAwal,
+      lastTx,
+      theme: document.documentElement.getAttribute('data-theme')||'light',
+      themeMode: savedThemeMode
+    }
   };
   const blob = new Blob([JSON.stringify(payload,null,2)], {type:'application/json'});
   const url = URL.createObjectURL(blob);
@@ -1933,7 +2209,7 @@ function exportData() {
   const dt = new Date();
   const stamp = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
   a.href = url;
-  a.download = `dompetku-backup-${stamp}.json`;
+  a.download = `dompetku-basic-backup-${stamp}.json`;
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -1991,36 +2267,27 @@ function handleImportFileV2(e) {
     try {
       const parsed = JSON.parse(ev.target.result);
       const data = parsed?.data || parsed;
-      if(!Array.isArray(data.txs) || !Array.isArray(data.cats) || !Array.isArray(data.goals) || !Array.isArray(data.hp)) {
+      const transactions = data.transactions || data.txs;
+      const categories = data.categories || data.cats;
+      if(!Array.isArray(transactions) || !Array.isArray(categories)) {
         throw new Error('Format backup tidak cocok');
       }
-      askConfirm('Import akan menimpa data yang sekarang. Lanjut?',()=>{
-        txs = data.txs;
-        cats = data.cats;
-        goals = data.goals;
-        hp = Array.isArray(data.hp) ? data.hp.map(normalizeHPItem) : [];
-        sakuTxs = Array.isArray(data.sakuTxs) ? data.sakuTxs : [];
-        saldoAwal = parseFloat(data.saldoAwal||0);
+      askConfirm('Import akan menimpa transaksi manual yang sekarang. Lanjut?', ()=>{
+        txs = transactions.map(normalizeTxItem).filter(tx => !tx.source || tx.source === 'manual');
+        cats = categories.map(normalizeCatItem).filter(cat => !isCoreHiddenCategory(cat));
+        saldoAwal = parseFloat(data.saldoAwal ?? wallets?.operational?.openingBalance ?? 0) || 0;
         lastTx = data.lastTx || '';
         const theme = data.theme === 'dark' ? 'dark' : 'light';
         document.documentElement.setAttribute('data-theme', theme);
-        document.getElementById('themeBtn').textContent = theme==='dark'?'☀️':'🌙';
-        savedTheme = data.theme === 'dark' ? 'dark' : 'light';
+        savedTheme = theme;
         savedThemeMode = data.themeMode === 'manual' ? 'manual' : 'auto';
         storageSet('dk_themeMode', savedThemeMode);
         syncThemeMode();
+        normalizeRuntimeState();
         save();
-        renderDashboard();
-        renderTxList();
-        renderHP();
-        renderCats();
-        renderStats();
-        renderSaldo();
-        renderSaku();
-        renderTargetSaldo();
-        updateFab();
+        refreshAllViews();
         alert('Import berhasil.');
-      },{title:'Import Data',okText:'Import',danger:true});
+      }, {title:'Import Data', okText:'Import', danger:true});
     } catch(err) {
       alert('File backup tidak valid.');
     } finally {
@@ -2039,49 +2306,21 @@ function getHPVisual(h) {
   return {cls:'saku', text:'Di Saku'};
 }
 
-function renderDashboard() {
-  const now = new Date();
-  const mtx = getMonthTxs(now);
-  const inc = mtx.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
-  const exp = mtx.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
-  const saldoTotal = getRealBalance();
-  const saldoSaku = getSakuBalance();
-  const danaGoal = getReservedGoalTotal();
-  const danaWajib = getReservedWajibTotal();
-  const danaTersisih = danaGoal + danaWajib;
-  const saldoTersedia = saldoTotal - danaTersisih;
-  const selisihAwal = saldoTotal - saldoAwal;
-  const targetAktif = targetSaldo>0 ? targetSaldo : saldoAwal;
-
-  const balEl = document.getElementById('balAmt');
-  balEl.textContent = fmtS(saldoTersedia);
-  balEl.style.color = saldoTersedia<0?'#ff6b6b':'white';
-  document.getElementById('balSub').textContent = `${MF[now.getMonth()]} ${now.getFullYear()} | Bank ${fmtS(saldoTotal)} | Saku ${fmt(saldoSaku)} | Goal ${fmt(danaGoal)} | Wajib ${fmt(danaWajib)} | Target ${fmt(targetAktif)}`;
-  document.getElementById('totalInc').textContent = fmt(inc);
-  document.getElementById('totalExp').textContent = fmt(exp);
-  document.getElementById('donutMonth').textContent = MF[now.getMonth()];
-
-  const r = inc>0?exp/inc:0;
-  const badge = document.getElementById('balBadge');
-  if(saldoTotal<saldoAwal){badge.textContent=`🚨 BOROS ${fmtS(selisihAwal)}`;badge.className='balance-badge badge-danger';}
-  else if(targetAktif>0 && saldoTotal>=targetAktif){badge.textContent=`📈 UNTUNG +${fmtN(saldoTotal-targetAktif)}`;badge.className='balance-badge badge-profit';}
-  else if(r>=1){badge.textContent='🚨 Boros!';badge.className='balance-badge badge-danger';}
-  else if(r>=0.8){badge.textContent='⚠️ Warning';badge.className='balance-badge badge-warning';}
-  else{badge.textContent='✅ Aman';badge.className='balance-badge badge-aman';}
-
-  renderDonut(mtx);
-  renderTop3(mtx);
-  renderGoals();
-  renderWajibFunds();
-  checkAlert();
-}
-
 function renderSaku() {
   const balance = getSakuBalance();
-  document.getElementById('sakuVal').textContent = fmt(balance);
-  document.getElementById('sakuInfo').textContent = balance>0
+  const value = fmt(balance);
+  const text = balance>0
     ? `Ada ${fmt(balance)} uang cash di luar bank. Pakai tombol "Ke Bank" saat uang ini sudah benar-benar masuk BRImo/bank.`
     : 'Pakai ini untuk uang cash yang belum masuk BRImo/bank, termasuk pelunasan piutang yang masih kamu pegang.';
+  const a = document.getElementById('sakuVal');
+  const b = document.getElementById('sakuValProxy');
+  const ia = document.getElementById('sakuInfo');
+  const ib = document.getElementById('sakuInfoProxy');
+  if(a) a.textContent = value;
+  if(b) b.textContent = value;
+  if(ia) ia.textContent = text;
+  if(ib) ib.textContent = text;
+  renderWalletProxyCards();
 }
 
 function openSakuModal(type='in') {
@@ -2103,10 +2342,10 @@ function saveSakuTx() {
   if(!amount) return alert('Nominal wajib diisi!');
   if(type==='out' && amount>getSakuBalance()) return alert('Saldo saku tidak cukup.');
   addSakuTx(type, amount, note || (type==='in' ? 'Saldo saku masuk' : 'Pengeluaran cash'));
+  lastTx = new Date().toISOString();
   save();
-  renderSaku();
-  renderDashboard();
   closeModal('sakuModal');
+  refreshAllViews();
 }
 
 function openTransferSakuModal(amount=null, note='') {
@@ -2127,137 +2366,23 @@ function saveTransferSaku(amountOverride=null, noteOverride='', meta={}) {
   addSakuTx('out', amount, note, {source:meta.source||'transfer', sourceId:meta.sourceId||null});
   const bankTx = addSystemTx({
     type:'income',
-    amount,
+    amount:amount,
     catId:getIncomeCatId(),
-    note,
+    note:note,
     source:'internal_transfer',
     sourceId:meta.sourceId||null
   });
-  if(meta.sourceId){
-    const h = hp.find(x=>x.id===meta.sourceId);
-    if(h) {
-      h.settleState = 'banked';
-      h.transferTxId = bankTx.id;
+  if(meta.sourceId) {
+    const item = hp.find(x=>x.id===meta.sourceId);
+    if(item) {
+      item.settleState = 'banked';
+      item.transferTxId = bankTx.id;
     }
   }
   lastTx = new Date().toISOString();
   save();
-  renderSaku();
-  renderDashboard();
-  renderHP();
-  renderTxList();
   closeModal('transferSakuModal');
-}
-
-function renderHP() {
-  const filtered=hp.filter(h=>h.type===curHP);
-  const el=document.getElementById('hpList');
-  const total=filtered.filter(h=>!h.lunas).reduce((s,h)=>s+h.amount,0);
-  const cashHold=filtered.filter(h=>h.type==='piutang' && h.lunas && h.settleState!=='banked').reduce((s,h)=>s+h.amount,0);
-  document.getElementById('hpSum').textContent = filtered.length
-    ? (curHP==='piutang'
-      ? `Belum dibayar: ${fmt(total)}${cashHold?` | Di saku: ${fmt(cashHold)}`:''}`
-      : `Total hutangmu: ${fmt(total)}`)
-    : '';
-  if(!filtered.length){el.innerHTML=`<div class="tx-empty">${curHP==='piutang'?'Belum ada piutang':'Belum ada hutang'}</div>`;return;}
-  el.innerHTML=filtered.sort((a,b)=>new Date(b.date)-new Date(a.date)).map(h=>{
-    const status = getHPVisual(h);
-    return `
-    <div class="hp-item">
-      <div class="hp-av ${h.type}">${esc(h.name.charAt(0).toUpperCase())}</div>
-      <div class="hp-info">
-        <div class="hp-name">${esc(h.name)}</div>
-        <div class="hp-date">${new Date(h.date).toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric'})}${h.note?' · '+esc(h.note):''}</div>
-      </div>
-      <div class="hp-right">
-        <div class="hp-amt ${h.type}">${fmt(h.amount)}</div>
-        <span class="hp-status ${status.cls}">${status.text}</span>
-      </div>
-      <div class="hp-acts">
-        ${!h.lunas?`<button class="hbtn lunas" onclick="tandaiLunas('${h.id}')">✅</button>`:''}
-        ${(h.type==='piutang' && h.lunas && h.settleState!=='banked')?`<button class="hbtn bank" onclick="transferPiutangToBank('${h.id}')">🏦</button>`:''}
-        <button class="hbtn del" onclick="delHP('${h.id}')">🗑️</button>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-function saveHP(){
-  const n=document.getElementById('hpName').value.trim();
-  const a=parseA(document.getElementById('hpAmt').value);
-  const note=document.getElementById('hpNote').value.trim();
-  if(!n)return alert('Nama wajib!');
-  if(!a)return alert('Nominal wajib!');
-  if(curHP==='piutang'){
-    const saldoTersedia = getRealBalance() - getReservedTotal();
-    if(a>saldoTersedia) return alert('Saldo tersedia tidak cukup untuk membuat piutang ini.');
-  }
-  const hpId = 'hp'+Date.now();
-  let createTx = null;
-  if(curHP==='piutang'){
-    createTx = addSystemTx({
-      type:'expense',
-      amount:a,
-      catId:getExpenseCatId(),
-      note: note || `Piutang ke ${n}`,
-      source:'hp_create_piutang',
-      sourceId:hpId
-    });
-  } else {
-    createTx = addSystemTx({
-      type:'income',
-      amount:a,
-      catId:getIncomeCatId(),
-      note: note || `Dana hutang dari ${n}`,
-      source:'hp_create_hutang',
-      sourceId:hpId
-    });
-  }
-  hp.push({id:hpId,type:curHP,name:n,amount:a,note,date:new Date().toISOString(),lunas:false,settleState:'pending',createTxId:createTx?.id||null});
-  lastTx = new Date().toISOString();
-  save();renderHP();renderDashboard();renderTxList();closeModal('hpModal');
-}
-
-function tandaiLunas(id){
-  const h=hp.find(x=>x.id===id);
-  if(!h) return;
-  const msg = h.type==='piutang'
-    ? 'Tandai piutang ini lunas dan masukkan dulu ke Saldo Saku?'
-    : 'Tandai catatan ini sebagai lunas?';
-  askConfirm(msg,()=>{
-    if(h.type==='piutang'){
-      h.lunas=true;
-      h.settleState='cash';
-      h.tanggalLunas=new Date().toISOString();
-      addSakuTx('in', h.amount, `Pelunasan piutang ${h.name}`, {source:'hp_lunas', sourceId:h.id});
-      lastTx = new Date().toISOString();
-      renderSaku();
-      renderDashboard();
-    } else {
-      h.lunas=true;
-      h.tanggalLunas=new Date().toISOString();
-      const settleTx = addSystemTx({
-        type:'expense',
-        amount:h.amount,
-        catId:getExpenseCatId(),
-        note:h.note || `Pelunasan hutang ke ${h.name}`,
-        source:'hp_settle_hutang',
-        sourceId:h.id
-      });
-      h.settleTxId = settleTx.id;
-      lastTx = new Date().toISOString();
-    }
-    save();renderHP();renderTxList();renderDashboard();
-  },{title:'Tandai Lunas',okText:h.type==='piutang'?'Masuk Saku':'Lunaskan'});
-}
-
-function delHP(id){
-  askConfirm('Hapus catatan hutang/piutang ini?',()=>{
-    sakuTxs = sakuTxs.filter(t=>t.sourceId!==id);
-    txs = txs.filter(t=>t.sourceId!==id);
-    hp=hp.filter(h=>h.id!==id);
-    save();renderHP();renderSaku();renderDashboard();renderTxList();renderDetailList();
-  },{title:'Hapus Catatan',okText:'Hapus',danger:true});
+  refreshAllViews();
 }
 
 function transferPiutangToBank(id){
@@ -2271,18 +2396,18 @@ function toggleFold(id){
   if(el) el.classList.toggle('open');
 }
 
-function renderKelolaLayout(){
+function renderKelolaLayout() {
   const wrap = document.getElementById('kelolaWrap');
   if(!wrap) return;
   wrap.innerHTML = `
     <div class="sec">
-      <div class="fold-card open" id="foldKeuangan">
-        <div class="fold-head" onclick="toggleFold('foldKeuangan')">
+      <div class="fold-card open" id="foldSaldoUtama">
+        <div class="fold-head" onclick="toggleFold('foldSaldoUtama')">
           <div class="fold-left">
-            <div class="fold-icon">💼</div>
+            <div class="fold-icon">💰</div>
             <div>
-              <div class="fold-title">Ringkasan Uang</div>
-              <div class="fold-sub">Saldo bank, target, saku, dan backup</div>
+              <div class="fold-title">Saldo Utama</div>
+              <div class="fold-sub">Satu saldo utama untuk semua transaksi manual.</div>
             </div>
           </div>
           <div class="fold-arrow">⌄</div>
@@ -2295,52 +2420,11 @@ function renderKelolaLayout(){
             </div>
             <div style="font-size:28px;">💰</div>
           </div>
-          <div class="saldo-card" onclick="openTargetModal()" style="margin-top:10px;">
-            <div>
-              <div class="saldo-label">Tap untuk atur target untung</div>
-              <div class="saldo-val" id="targetSaldoValProxy">Rp 0</div>
-            </div>
-            <div style="font-size:28px;">🎯</div>
-          </div>
-          <div class="saldo-card" style="margin-top:10px;">
-            <div>
-              <div class="saldo-label">Uang cash di luar bank</div>
-              <div class="saldo-val" id="sakuValProxy">Rp 0</div>
-            </div>
-            <div style="font-size:28px;">💵</div>
-          </div>
-          <div class="triple-row">
-            <button class="btn-mini" onclick="openSakuModal('in')">+ Masuk</button>
-            <button class="btn-mini" onclick="openSakuModal('out')">- Keluar</button>
-            <button class="btn-mini primary" onclick="openTransferSakuModal()">Ke Bank</button>
-          </div>
-          <div class="saku-note" id="sakuInfoProxy">Pakai ini untuk uang cash yang belum masuk BRImo/bank, termasuk pelunasan piutang yang masih kamu pegang.</div>
-          <button class="btn-reset" onclick="resetSaldo()">🔄 Reset Saldo ke Nol</button>
           <div class="backup-row">
             <button class="btn-ghost" onclick="exportData()">⬇️ Export Data</button>
             <button class="btn-ghost" onclick="triggerImport()">⬆️ Import Data</button>
           </div>
-          <div class="mode-card">
-            <div class="mode-title">App Mode</div>
-            <div class="mode-sub">Pilih tampilan yang lebih sederhana untuk pengguna baru, atau tampilkan semua fitur.</div>
-            <div class="mode-options">
-              <label class="mode-option">
-                <input type="radio" name="appMode" value="simple" onchange="setAppMode('simple')">
-                <div>
-                  <strong>Mode Sederhana</strong>
-                  <span>Fokus ke saldo, transaksi, goals, dan saldo saku. Cocok untuk beta user baru.</span>
-                </div>
-              </label>
-              <label class="mode-option">
-                <input type="radio" name="appMode" value="full" onchange="setAppMode('full')">
-                <div>
-                  <strong>Mode Lengkap</strong>
-                  <span>Tampilkan semua fitur termasuk hutang-piutang, Dana Wajib, dan Vote Harian.</span>
-                </div>
-              </label>
-            </div>
-            <div class="mode-hint" id="modeHint" style="display:none">Mulai dengan Mode Sederhana untuk pengalaman yang lebih ringan. Kamu bisa aktifkan Mode Lengkap kapan saja.</div>
-          </div>
+          <button class="btn-reset" onclick="resetSaldo()">Reset Saldo</button>
         </div>
       </div>
     </div>
@@ -2351,7 +2435,7 @@ function renderKelolaLayout(){
             <div class="fold-icon">📂</div>
             <div>
               <div class="fold-title">Kategori</div>
-              <div class="fold-sub">Kelola daftar pemasukan dan pengeluaran</div>
+              <div class="fold-sub">Kelola kategori pemasukan dan pengeluaran manual.</div>
             </div>
           </div>
           <div class="fold-arrow">⌄</div>
@@ -2372,7 +2456,7 @@ function renderKelolaLayout(){
             <div class="fold-icon">📊</div>
             <div>
               <div class="fold-title">Statistik 6 Bulan</div>
-              <div class="fold-sub">Lihat tren pemasukan dan pengeluaran</div>
+              <div class="fold-sub">Ringkasan pemasukan dan pengeluaran manual.</div>
             </div>
           </div>
           <div class="fold-arrow">⌄</div>
@@ -2390,106 +2474,11 @@ function renderKelolaLayout(){
     </div>`;
 }
 
-function renderSaldo(){
-  const value = fmt(saldoAwal);
-  const a = document.getElementById('saldoAwalVal');
-  const b = document.getElementById('saldoAwalValProxy');
-  if(a) a.textContent = value;
-  if(b) b.textContent = value;
-}
-
-function renderTargetSaldo(){
-  const value = fmt(targetSaldo>0?targetSaldo:saldoAwal);
-  const a = document.getElementById('targetSaldoVal');
-  const b = document.getElementById('targetSaldoValProxy');
-  if(a) a.textContent = value;
-  if(b) b.textContent = value;
-}
-
-function renderSaku() {
-  const balance = getSakuBalance();
-  const value = fmt(balance);
-  const text = balance>0
-    ? `Ada ${fmt(balance)} uang cash di luar bank. Pakai tombol "Ke Bank" saat uang ini sudah benar-benar masuk BRImo/bank.`
-    : 'Pakai ini untuk uang cash yang belum masuk BRImo/bank, termasuk pelunasan piutang yang masih kamu pegang.';
-  const a = document.getElementById('sakuVal');
-  const b = document.getElementById('sakuValProxy');
-  const ia = document.getElementById('sakuInfo');
-  const ib = document.getElementById('sakuInfoProxy');
-  if(a) a.textContent = value;
-  if(b) b.textContent = value;
-  if(ia) ia.textContent = text;
-  if(ib) ib.textContent = text;
-}
-
 function renderModeSettings() {
   const radios = document.querySelectorAll('input[name="appMode"]');
   radios.forEach(r=>{r.checked = r.value === appPreferences.app_mode;});
   const hint = document.getElementById('modeHint');
   if(hint) hint.style.display = isSimpleMode() && !appPreferences.hint_seen ? 'block' : 'none';
-}
-
-function openGoalModal(id=null){
-  editGoalId = id;
-  const titleEl = document.querySelector('#goalModal .mtitle');
-  const goal = id ? goals.find(g=>g.id===id) : null;
-  if(titleEl) titleEl.textContent = goal ? 'Edit Goal' : 'Tambah Goal';
-  document.getElementById('goalName').value = goal ? goal.name : '';
-  document.getElementById('goalAmt').value = goal ? goal.target.toLocaleString('id-ID') : '';
-  document.getElementById('goalAmtHint').textContent = goal ? '= '+fmt(goal.target) : '';
-  openModal('goalModal');
-}
-
-function saveGoal(){
-  const n=document.getElementById('goalName').value.trim();
-  const t=parseA(document.getElementById('goalAmt').value);
-  if(!n)return alert('Nama goal wajib!');
-  if(!t)return alert('Target wajib!');
-  if(editGoalId){
-    const g = goals.find(x=>x.id===editGoalId);
-    if(g){g.name=n;g.target=t;if(g.terkumpul>t) g.terkumpul=t;}
-  } else {
-    goals.push({id:'g'+Date.now(),name:n,target:t,terkumpul:0});
-  }
-  save();renderGoals();renderDashboard();closeModal('goalModal');
-}
-
-function renderGoals() {
-  const el = document.getElementById('goalsList');
-  if(!el) return;
-  if(!goals.length){el.innerHTML='<div class="empty">Belum ada goals. Tap + untuk tambah!</div>';return;}
-  el.innerHTML = goals.map(g=>{
-    const pct = g.target>0?Math.min(100,Math.round(g.terkumpul/g.target*100)):0;
-    const icon = getGoalIcon(g.name);
-    return `<div class="goal-card">
-      <div class="goal-hd">
-        <div class="goal-name">${icon} ${esc(g.name)}</div>
-        <div class="goal-head-actions">
-          <div class="goal-pct">${pct}%</div>
-          <button class="gbtn add" onclick="openGoalModal('${g.id}')" title="Edit">✏️</button>
-          <button class="gbtn add" onclick="openSisihModal('${g.id}')" title="Sisihkan">➕</button>
-          <button class="gbtn del" onclick="delGoal('${g.id}')" title="Hapus">🗑️</button>
-        </div>
-      </div>
-      <div class="prog-track"><div class="prog-fill" style="width:${pct}%"></div></div>
-      <div class="goal-ft"><span>Terkumpul: ${fmt(g.terkumpul)}</span><span>Target: ${fmt(g.target)}</span></div>
-      ${pct>=100?'<div style="font-size:12px;color:var(--green);font-weight:700;margin-top:6px;text-align:center;">🎉 Target tercapai!</div>':''}
-    </div>`;
-  }).join('');
-}
-
-function saveGoal(){
-  const n=document.getElementById('goalName').value.trim();
-  const t=parseA(document.getElementById('goalAmt').value);
-  if(!n)return alert('Nama goal wajib!');
-  if(!t)return alert('Target wajib!');
-  if(editGoalId){
-    const g = goals.find(x=>x.id===editGoalId);
-    if(g){g.name=n;g.target=t;if(g.terkumpul>t) g.terkumpul=t;}
-  } else {
-    goals.push(normalizeGoal({id:'g'+Date.now(),name:n,target:t,terkumpul:0}));
-  }
-  save();renderGoals();renderDashboard();closeModal('goalModal');
 }
 
 function renderGoalVoteBar() {
@@ -2541,85 +2530,35 @@ function renderGoalHistory() {
   }).join('');
 }
 
-function voteGoal(id){
-  const g = goals.find(x=>x.id===id && !x.is_purchased);
-  if(!g) return;
+function voteGoal(id) {
+  const goal = goals.find(x=>x.id===id && !x.is_purchased);
+  if(!goal) return;
   const usedGoal = getTodayVotedGoal();
-  if(usedGoal){
+  if(usedGoal) {
     alert(usedGoal.id===id ? 'Kamu sudah vote goal ini hari ini.' : `Token hari ini sudah dipakai untuk "${usedGoal.name}".`);
     return;
   }
   const now = new Date();
-  const prevDay = g.last_voted_at ? dayKeyLocal(g.last_voted_at) : '';
+  const prevDay = goal.last_voted_at ? dayKeyLocal(goal.last_voted_at) : '';
   const yesterday = new Date(now);
   yesterday.setDate(yesterday.getDate()-1);
-  g.vote_count = Number(g.vote_count||0) + 1;
-  g.vote_streak = prevDay && prevDay===dayKeyLocal(yesterday) ? Number(g.vote_streak||0)+1 : 1;
-  g.last_voted_at = now.toISOString();
+  goal.vote_count = Number(goal.vote_count||0) + 1;
+  goal.vote_streak = prevDay && prevDay===dayKeyLocal(yesterday) ? Number(goal.vote_streak||0)+1 : 1;
+  goal.last_voted_at = now.toISOString();
+  lastTx = now.toISOString();
   save();
-  renderGoals();
+  refreshAllViews();
 }
 
-function markGoalPurchased(id){
-  const g = goals.find(x=>x.id===id && !x.is_purchased);
-  if(!g) return;
-  askConfirm(`Pindahkan "${g.name}" ke riwayat pembelian?`,()=>{
-    g.is_purchased = true;
-    g.purchased_at = new Date().toISOString();
+function markGoalPurchased(id) {
+  const goal = goals.find(x=>x.id===id && !x.is_purchased);
+  if(!goal) return;
+  askConfirm(`Pindahkan "${goal.name}" ke riwayat pembelian?`, ()=>{
+    goal.is_purchased = true;
+    goal.purchased_at = new Date().toISOString();
     save();
-    renderGoals();
-    renderDashboard();
-  },{title:'Saya Sudah Beli',okText:'Pindahkan'});
-}
-
-function renderGoals() {
-  const el = document.getElementById('goalsList');
-  if(!el) return;
-  const activeGoals = getActiveGoals();
-  const usedGoal = getTodayVotedGoal();
-  const simple = isSimpleMode();
-  renderGoalVoteBar();
-  renderGoalHistory();
-  if(!activeGoals.length){
-    el.innerHTML='<div class="empty">Belum ada goal aktif. Tap + untuk tambah atau cek riwayat pembelian di bawah.</div>';
-    return;
-  }
-  el.innerHTML = activeGoals.map(g=>{
-    const pct = g.target>0?Math.min(100,Math.round(g.terkumpul/g.target*100)):0;
-    const icon = getGoalIcon(g.name);
-    const votedToday = usedGoal && usedGoal.id===g.id;
-    const tokenUsedByOther = usedGoal && usedGoal.id!==g.id;
-    const canVote = !usedGoal;
-    const lastVoteLabel = g.last_voted_at ? new Date(g.last_voted_at).toLocaleDateString('id-ID', {day:'2-digit', month:'short'}) : 'Belum pernah';
-    const chips = simple ? '' : [
-      `<span class="goal-chip vote">${g.vote_count||0} vote</span>`,
-      g.vote_streak>=2 ? `<span class="goal-chip hot">Streak ${g.vote_streak} hari</span>` : '',
-      g.last_voted_at ? `<span class="goal-chip">Terakhir ${lastVoteLabel}</span>` : ''
-    ].filter(Boolean).join('');
-    const softSignal = !simple && g.vote_count>=3 ? '<div class="goal-soft-signal">Ini sering kamu pilih.</div>' : '';
-    const voteLabel = votedToday ? 'Sudah kamu pilih hari ini' : (tokenUsedByOther ? 'Token hari ini habis' : 'Vote Hari Ini');
-    const extraActions = simple ? '' : `<div class="goal-meta">${chips}</div>
-      ${softSignal}
-      <div class="goal-actions">
-        <button class="goal-act-btn vote" onclick="voteGoal('${g.id}')" ${canVote?'':'disabled'}>${voteLabel}</button>
-        <button class="goal-act-btn buy" onclick="markGoalPurchased('${g.id}')">Saya Sudah Beli</button>
-      </div>`;
-    return `<div class="goal-card">
-      <div class="goal-hd">
-        <div class="goal-name">${icon} ${esc(g.name)}</div>
-        <div class="goal-head-actions">
-          <div class="goal-pct">${pct}%</div>
-          <button class="gbtn add" onclick="openGoalModal('${g.id}')" title="Edit">✏️</button>
-          <button class="gbtn add" onclick="openSisihModal('${g.id}')" title="Sisihkan">➕</button>
-          <button class="gbtn del" onclick="delGoal('${g.id}')" title="Hapus">🗑️</button>
-        </div>
-      </div>
-      <div class="prog-track"><div class="prog-fill" style="width:${pct}%"></div></div>
-      <div class="goal-ft"><span>Terkumpul: ${fmt(g.terkumpul)}</span><span>Target: ${fmt(g.target)}</span></div>
-      ${extraActions}
-      ${pct>=100?'<div style="font-size:12px;color:var(--green);font-weight:700;margin-top:6px;text-align:center;">Target tercapai!</div>':''}
-    </div>`;
-  }).join('');
+    refreshAllViews();
+  }, {title:'Saya Sudah Beli', okText:'Pindahkan'});
 }
 
 function openWajibModal(id=null) {
@@ -2910,112 +2849,6 @@ function formatTimelineItem(item){
   return map[item.hpEvent];
 }
 
-function renderTxList(){
-  document.getElementById('txMonthLabel').textContent=MF[curMonth.getMonth()]+' '+curMonth.getFullYear();
-  const monthItems=getTimelineItems('all').filter(item=>{
-    const d = new Date(item.date);
-    return d.getFullYear()===curMonth.getFullYear() && d.getMonth()===curMonth.getMonth();
-  });
-  const el=document.getElementById('txList');
-  if(!monthItems.length){el.innerHTML='<div class="tx-empty">📭 Belum ada aktivitas bulan ini</div>';return;}
-  const grouped={};
-  monthItems.forEach(item=>{const d=new Date(item.date);const k=d.toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long'});if(!grouped[k])grouped[k]=[];grouped[k].push(item);});
-  el.innerHTML=Object.entries(grouped).map(([date,dayItems])=>`
-    <div class="tx-date-group">
-      <div class="tx-date-label">${esc(date)}</div>
-      ${dayItems.map(item=>{const view=formatTimelineItem(item);return `
-        <div class="tx-item" id="tx-${item.id}">
-          <div class="tx-emoji" ${(item.kind==='tx' && view.deletable) ? `onclick="openEditTx('${item.id}')"`:''}>${view.emoji}</div>
-          <div class="tx-info" ${(item.kind==='tx' && view.deletable) ? `onclick="openEditTx('${item.id}')"`:''}>
-            <div class="tx-cat">${view.title}</div>
-            <div class="tx-note">${view.subtitle}</div>
-            ${view.badge?`<div class="tx-badge">${view.badge}</div>`:''}
-            <div class="tx-balance">${view.meta}</div>
-          </div>
-          <div class="tx-right">
-            <div class="tx-amt ${view.amountClass}">${view.amountText}</div>
-            <div class="tx-time">${new Date(item.date).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})}</div>
-          </div>
-          ${view.deletable?`<div class="tx-del" onclick="delTx('${item.id}')">🗑️</div>`:''}
-        </div>
-      `;}).join('')}
-    </div>
-  `).join('');
-  el.querySelectorAll('.tx-item').forEach(item=>{
-    let sx;
-    item.addEventListener('touchstart',e=>{sx=e.touches[0].clientX;});
-    item.addEventListener('touchend',e=>{if(sx-e.changedTouches[0].clientX>50)item.classList.add('swiped');else item.classList.remove('swiped');});
-  });
-}
-
-function renderDetailList() {
-  const sorted = getTimelineItems(curDetailFilter);
-  const el = document.getElementById('detailList');
-  if(!sorted.length){el.innerHTML='<div class="empty">Belum ada aktivitas</div>';return;}
-  el.innerHTML = sorted.map(item=>{
-    const view = formatTimelineItem(item);
-    return `<div style="background:var(--card2);border-radius:10px;padding:12px;display:flex;align-items:center;gap:10px;">
-      <div style="font-size:20px;width:36px;height:36px;background:var(--card);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${view.emoji}</div>
-      <div style="flex:1;min-width:0;">
-        <div style="font-size:13px;font-weight:700;">${view.title}</div>
-        <div style="font-size:11px;color:var(--text2);">${view.subtitle} · ${new Date(item.date).toLocaleDateString('id-ID',{day:'numeric',month:'short'})}</div>
-        ${view.badge?`<div style="display:inline-block;font-size:9px;font-weight:800;padding:2px 6px;border-radius:999px;background:var(--blue-light);color:var(--blue);margin-top:4px;">${view.badge}</div>`:''}
-        <div style="font-size:10px;color:var(--text2);font-weight:700;margin-top:3px;">${view.meta}</div>
-      </div>
-      <div style="text-align:right;flex-shrink:0;">
-        <div style="font-size:13px;font-weight:800;font-family:'DM Mono',monospace;color:${view.amountClass==='income'?'var(--green)':view.amountClass==='expense'?'var(--red)':'var(--blue)'};">${view.amountText}</div>
-      </div>
-      ${view.deletable?`<button onclick="delTxDetail('${item.id}')" style="width:28px;height:28px;border-radius:7px;border:none;background:var(--red-light);color:var(--red);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;">🗑️</button>`:''}
-    </div>`;
-  }).join('');
-}
-
-function renderCats(){
-  const list = cats.map(c=>`
-    <div class="cat-item">
-      <div class="cat-emoji">${c.emoji}</div>
-      <div class="cat-name">${esc(c.name)}</div>
-      <div class="cat-type ${c.type}">${c.type==='income'?'Pemasukan':'Pengeluaran'}</div>
-      <div class="cat-acts">
-        <button class="cbtn edit" onclick="editCat('${c.id}')">✏️</button>
-        <button class="cbtn del" onclick="delCat('${c.id}')">🗑️</button>
-      </div>
-    </div>
-  `).join('');
-  const a = document.getElementById('catList');
-  const b = document.getElementById('catListProxy');
-  if(a) a.innerHTML = list;
-  if(b) b.innerHTML = list;
-}
-
-function renderStats(){
-  const now=new Date();const months=[];
-  for(let i=5;i>=0;i--)months.push(new Date(now.getFullYear(),now.getMonth()-i,1));
-  const data=months.map(m=>{const tx=getMonthTxs(m);return{label:MN[m.getMonth()],inc:tx.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0),exp:tx.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0)};});
-  const max=Math.max(...data.map(d=>Math.max(d.inc,d.exp)),1);
-  const html = data.map(d=>`
-    <div class="bar-group">
-      <div class="bars">
-        <div class="bar inc-bar" style="height:${Math.round(d.inc/max*90)}px"></div>
-        <div class="bar exp-bar" style="height:${Math.round(d.exp/max*90)}px"></div>
-      </div>
-      <div class="bar-lbl">${d.label}</div>
-    </div>
-  `).join('');
-  const a = document.getElementById('barChart');
-  const b = document.getElementById('barChartProxy');
-  if(a) a.innerHTML = html;
-  if(b) b.innerHTML = html;
-}
-
-function toggleTheme() {
-  const dark = document.documentElement.getAttribute('data-theme')==='dark';
-  savedThemeMode = 'manual';
-  storageSet('dk_themeMode', savedThemeMode);
-  savedTheme = dark ? 'light' : 'dark';
-  applyTheme(savedTheme);
-}
-
 function hideSplash() {
   const splash = document.getElementById('splashScreen');
   if(!splash) return;
@@ -3025,67 +2858,6 @@ function hideSplash() {
   }, 850);
 }
 
-function handleImportFileV2(e) {
-  const file = e.target.files?.[0];
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = ev => {
-    try {
-      const parsed = JSON.parse(ev.target.result);
-      const data = parsed?.data || parsed;
-      if(!Array.isArray(data.txs) || !Array.isArray(data.cats) || !Array.isArray(data.goals) || !Array.isArray(data.hp)) {
-        throw new Error('Format backup tidak cocok');
-      }
-      askConfirm('Import akan menimpa data yang sekarang. Lanjut?',()=>{
-        txs = data.txs;
-        cats = data.cats;
-        goals = Array.isArray(data.goals) ? data.goals.map(normalizeGoal) : [];
-        wajibFunds = Array.isArray(data.wajibFunds) ? data.wajibFunds.map(normalizeWajibFund) : [];
-        hp = Array.isArray(data.hp) ? data.hp.map(normalizeHPItem) : [];
-        sakuTxs = Array.isArray(data.sakuTxs) ? data.sakuTxs : [];
-        saldoAwal = parseFloat(data.saldoAwal||0);
-        lastTx = data.lastTx || '';
-        targetSaldo = parseFloat(data.targetSaldo||0);
-        if(data.appPreferences && (data.appPreferences.app_mode==='simple' || data.appPreferences.app_mode==='full')) {
-          appPreferences = {
-            app_mode: data.appPreferences.app_mode,
-            hint_seen: !!data.appPreferences.hint_seen
-          };
-        }
-        const theme = data.theme === 'dark' ? 'dark' : 'light';
-        document.documentElement.setAttribute('data-theme', theme);
-        document.getElementById('themeBtn').textContent = theme==='dark'?'â˜€ï¸':'ðŸŒ™';
-        savedTheme = theme;
-        savedThemeMode = data.themeMode === 'manual' ? 'manual' : 'auto';
-        storageSet('dk_themeMode', savedThemeMode);
-        syncThemeMode();
-        save();
-        renderDashboard();
-        renderTxList();
-        renderHP();
-        renderCats();
-        renderStats();
-        renderSaldo();
-        renderSaku();
-        renderTargetSaldo();
-        renderWajibFunds();
-        updateFab();
-        applyAppMode();
-        alert('Import berhasil.');
-      },{title:'Import Data',okText:'Import',danger:true});
-    } catch(err) {
-      alert('File backup tidak valid.');
-    } finally {
-      e.target.value = '';
-    }
-  };
-  reader.readAsText(file);
-}
-
-
-
-// Final runtime safeguards: keep the current architecture but make
-// active behavior consistent even when older duplicate functions exist.
 function normalizeCatItem(item={}) {
   return {
     id: item.id || ('c'+Date.now()+Math.floor(Math.random()*1000)),
@@ -3100,13 +2872,15 @@ function normalizeTxItem(tx={}) {
   const parsedDate = new Date(tx.date || Date.now());
   return {
     id: tx.id || ('t'+Date.now()+Math.floor(Math.random()*1000)),
-    type: type,
+    type,
     amount: Math.max(0, parseFloat(tx.amount||0)),
     catId: tx.catId || (type === 'income' ? getIncomeCatId() : getExpenseCatId()),
     note: tx.note || '',
     date: Number.isNaN(parsedDate.getTime()) ? new Date().toISOString() : parsedDate.toISOString(),
     source: tx.source || 'manual',
-    sourceId: tx.sourceId || null
+    sourceId: tx.sourceId || null,
+    walletId: tx.walletId || 'operational',
+    flowTag: tx.flowTag || ''
   };
 }
 
@@ -3144,19 +2918,22 @@ function normalizeAppPreferences(pref) {
 
 function normalizeRuntimeState() {
   cats = Array.isArray(cats) ? cats.map(normalizeCatItem) : [];
+  ensureDefaultCategories();
   txs = Array.isArray(txs) ? txs.map(normalizeTxItem) : [];
   goals = Array.isArray(goals) ? goals.map(normalizeGoal) : [];
   wajibFunds = Array.isArray(wajibFunds) ? wajibFunds.map(normalizeWajibFund) : [];
   hp = Array.isArray(hp) ? hp.map(normalizeHPItem) : [];
   sakuTxs = Array.isArray(sakuTxs) ? sakuTxs.map(normalizeSakuItem) : [];
-  saldoAwal = parseFloat(saldoAwal||0) || 0;
+  wallets = normalizeWalletState(wallets);
+  saldoAwal = parseFloat(saldoAwal || wallets?.operational?.openingBalance || 0) || 0;
+  wallets.operational.openingBalance = saldoAwal;
   targetSaldo = parseFloat(targetSaldo||0) || 0;
   appPreferences = normalizeAppPreferences(appPreferences);
 }
 
 function getMonthCashflow(monthDate) {
   const monthTxs = getMonthTxs(monthDate);
-  const income = monthTxs.filter(t=>t.type==='income' && !isInternalTransferTx(t)).reduce((sum, t)=>sum+t.amount,0);
+  const income = monthTxs.filter(t=>t.type==='income').reduce((sum, t)=>sum+t.amount,0);
   const expense = monthTxs.filter(t=>t.type==='expense').reduce((sum, t)=>sum+t.amount,0);
   return {income, expense, monthTxs};
 }
@@ -3167,586 +2944,35 @@ function refreshOpenDetailIfNeeded() {
 }
 
 function refreshAllViews() {
+  if(currentPage==='hutang') currentPage = 'dashboard';
   if(currentPage==='kelola') renderKelolaLayout();
   renderDashboard();
   renderTxList();
-  renderHP();
   renderSaldo();
-  renderSaku();
-  renderTargetSaldo();
-  renderWajibFunds();
   renderCats();
   renderStats();
-  if(typeof renderModeSettings === 'function') renderModeSettings();
   updateFab();
   applyAppMode();
-  refreshOpenDetailIfNeeded();
-}
-
-function checkAlert() {
-  const banner = document.getElementById('alertBanner');
-  const now = new Date();
-  if(lastTx) {
-    const diff = Math.floor((now - new Date(lastTx)) / 86400000);
-    if(diff >= 3) {
-      banner.className = 'alert show idle';
-      banner.innerHTML = 'Sudah ' + diff + ' hari belum catat transaksi. Jangan sampai ada yang kelupaan ya.';
-      return;
-    }
-  } else if(!txs.length) {
-    banner.className = 'alert show idle';
-    banner.innerHTML = 'Yuk mulai catat keuangan kamu.';
-    return;
-  }
-  const flow = getMonthCashflow(now);
-  const ratio = flow.income>0 ? flow.expense/flow.income : 0;
-  if(ratio >= 1) {
-    banner.className = 'alert show danger';
-    banner.innerHTML = 'Pengeluaran melebihi pemasukan bulan ini.';
-  } else if(ratio >= 0.8) {
-    banner.className = 'alert show warning';
-    banner.innerHTML = 'Pengeluaran sudah ' + Math.round(ratio*100) + '% dari pemasukan bulan ini.';
-  } else {
-    banner.classList.remove('show');
-  }
-}
-
-function renderDashboard() {
-  const now = new Date();
-  const flow = getMonthCashflow(now);
-  const saldoTotal = getRealBalance();
-  const saldoSaku = getSakuBalance();
-  const danaGoal = getReservedGoalTotal();
-  const danaWajib = getReservedWajibTotal();
-  const danaTersisih = danaGoal + danaWajib;
-  const saldoTersedia = saldoTotal - danaTersisih;
-  const selisihAwal = saldoTotal - saldoAwal;
-  const targetAktif = targetSaldo>0 ? targetSaldo : saldoAwal;
-  const balEl = document.getElementById('balAmt');
-  if(balEl) {
-    balEl.textContent = fmtS(saldoTersedia);
-    balEl.style.color = saldoTersedia<0 ? '#ff6b6b' : 'white';
-  }
-  const balSub = document.getElementById('balSub');
-  if(balSub) {
-    balSub.textContent = MF[now.getMonth()]+' '+now.getFullYear()+
-      ' | Bank '+fmtS(saldoTotal)+
-      ' | Saku '+fmt(saldoSaku)+
-      ' | Goal '+fmt(danaGoal)+
-      ' | Wajib '+fmt(danaWajib)+
-      ' | Target '+fmt(targetAktif);
-  }
-  const totalInc = document.getElementById('totalInc');
-  const totalExp = document.getElementById('totalExp');
-  const donutMonth = document.getElementById('donutMonth');
-  if(totalInc) totalInc.textContent = fmt(flow.income);
-  if(totalExp) totalExp.textContent = fmt(flow.expense);
-  if(donutMonth) donutMonth.textContent = MF[now.getMonth()];
-  const badge = document.getElementById('balBadge');
-  if(badge) {
-    const ratio = flow.income>0 ? flow.expense/flow.income : 0;
-    if(saldoTotal < saldoAwal) {
-      badge.textContent = 'BOROS ' + fmtS(selisihAwal);
-      badge.className = 'balance-badge badge-danger';
-    } else if(targetAktif>0 && saldoTotal>=targetAktif) {
-      badge.textContent = 'UNTUNG +' + fmtN(saldoTotal-targetAktif);
-      badge.className = 'balance-badge badge-profit';
-    } else if(ratio>=1) {
-      badge.textContent = 'Boros';
-      badge.className = 'balance-badge badge-danger';
-    } else if(ratio>=0.8) {
-      badge.textContent = 'Warning';
-      badge.className = 'balance-badge badge-warning';
-    } else {
-      badge.textContent = 'Aman';
-      badge.className = 'balance-badge badge-aman';
-    }
-  }
-  renderDonut(flow.monthTxs);
-  renderTop3(flow.monthTxs);
-  renderGoals();
-  renderWajibFunds();
-  checkAlert();
-}
-
-function renderStats() {
-  const now = new Date();
-  const months = [];
-  for(let i=5;i>=0;i--) months.push(new Date(now.getFullYear(), now.getMonth()-i, 1));
-  const data = months.map(m=>{
-    const flow = getMonthCashflow(m);
-    return {label:MN[m.getMonth()], inc:flow.income, exp:flow.expense};
-  });
-  const max = Math.max(...data.map(d=>Math.max(d.inc,d.exp)),1);
-  const html = data.map(d=>`
-    <div class="bar-group">
-      <div class="bars">
-        <div class="bar inc-bar" style="height:${Math.round(d.inc/max*90)}px"></div>
-        <div class="bar exp-bar" style="height:${Math.round(d.exp/max*90)}px"></div>
-      </div>
-      <div class="bar-lbl">${d.label}</div>
-    </div>
-  `).join('');
-  const mainChart = document.getElementById('barChart');
-  const proxyChart = document.getElementById('barChartProxy');
-  if(mainChart) mainChart.innerHTML = html;
-  if(proxyChart) proxyChart.innerHTML = html;
-}
-
-function saveSakuTx() {
-  const type = document.getElementById('sakuType').value || 'in';
-  const amount = parseA(document.getElementById('sakuAmt').value);
-  const note = document.getElementById('sakuNote').value.trim();
-  if(!amount) return alert('Nominal wajib diisi!');
-  if(type==='out' && amount>getSakuBalance()) return alert('Saldo saku tidak cukup.');
-  addSakuTx(type, amount, note || (type==='in' ? 'Saldo saku masuk' : 'Pengeluaran cash'));
-  lastTx = new Date().toISOString();
-  save();
-  closeModal('sakuModal');
-  refreshAllViews();
-}
-
-function saveTransferSaku(amountOverride=null, noteOverride='', meta={}) {
-  const amount = amountOverride || parseA(document.getElementById('transferSakuAmt').value);
-  const note = noteOverride || document.getElementById('transferSakuNote').value.trim() || 'Setor cash ke bank';
-  if(!amount) return alert('Nominal wajib diisi!');
-  if(amount>getSakuBalance()) return alert('Saldo saku tidak cukup.');
-  addSakuTx('out', amount, note, {source:meta.source||'transfer', sourceId:meta.sourceId||null});
-  const bankTx = addSystemTx({
-    type:'income',
-    amount:amount,
-    catId:getIncomeCatId(),
-    note:note,
-    source:'internal_transfer',
-    sourceId:meta.sourceId||null
-  });
-  if(meta.sourceId) {
-    const item = hp.find(x=>x.id===meta.sourceId);
-    if(item) {
-      item.settleState = 'banked';
-      item.transferTxId = bankTx.id;
-    }
-  }
-  lastTx = new Date().toISOString();
-  save();
-  closeModal('transferSakuModal');
-  refreshAllViews();
-}
-
-function saveHP() {
-  const name = document.getElementById('hpName').value.trim();
-  const amount = parseA(document.getElementById('hpAmt').value);
-  const note = document.getElementById('hpNote').value.trim();
-  if(!name) return alert('Nama wajib!');
-  if(!amount) return alert('Nominal wajib!');
-  if(curHP==='piutang') {
-    const saldoTersedia = getRealBalance() - getReservedTotal();
-    if(amount>saldoTersedia) return alert('Saldo tersedia tidak cukup untuk membuat piutang ini.');
-  }
-  const hpId = 'hp'+Date.now();
-  let createTx = null;
-  if(curHP==='piutang') {
-    createTx = addSystemTx({
-      type:'expense',
-      amount:amount,
-      catId:getExpenseCatId(),
-      note: note || ('Piutang ke ' + name),
-      source:'hp_create_piutang',
-      sourceId:hpId
-    });
-  } else {
-    createTx = addSystemTx({
-      type:'income',
-      amount:amount,
-      catId:getIncomeCatId(),
-      note: note || ('Dana hutang dari ' + name),
-      source:'hp_create_hutang',
-      sourceId:hpId
-    });
-  }
-  hp.push(normalizeHPItem({
-    id:hpId,
-    type:curHP,
-    name:name,
-    amount:amount,
-    note:note,
-    date:new Date().toISOString(),
-    lunas:false,
-    settleState:'pending',
-    createTxId:createTx ? createTx.id : null
-  }));
-  lastTx = new Date().toISOString();
-  save();
-  closeModal('hpModal');
-  refreshAllViews();
-}
-
-function tandaiLunas(id) {
-  const item = hp.find(x=>x.id===id);
-  if(!item) return;
-  const message = item.type==='piutang'
-    ? 'Tandai piutang ini lunas dan masukkan dulu ke Saldo Saku?'
-    : 'Tandai catatan ini sebagai lunas?';
-  askConfirm(message, ()=>{
-    item.lunas = true;
-    item.tanggalLunas = new Date().toISOString();
-    if(item.type==='piutang') {
-      item.settleState = 'cash';
-      addSakuTx('in', item.amount, 'Pelunasan piutang ' + item.name, {source:'hp_lunas', sourceId:item.id});
-    } else {
-      const settleTx = addSystemTx({
-        type:'expense',
-        amount:item.amount,
-        catId:getExpenseCatId(),
-        note:item.note || ('Pelunasan hutang ke ' + item.name),
-        source:'hp_settle_hutang',
-        sourceId:item.id
-      });
-      item.settleTxId = settleTx.id;
-    }
-    lastTx = new Date().toISOString();
-    save();
-    refreshAllViews();
-  }, {title:'Tandai Lunas', okText:item.type==='piutang'?'Masuk Saku':'Lunaskan'});
-}
-
-function delHP(id) {
-  askConfirm('Hapus catatan hutang/piutang ini?', ()=>{
-    sakuTxs = sakuTxs.filter(t=>t.sourceId!==id);
-    txs = txs.filter(t=>t.sourceId!==id);
-    hp = hp.filter(h=>h.id!==id);
-    save();
-    refreshAllViews();
-  }, {title:'Hapus Catatan', okText:'Hapus', danger:true});
-}
-
-function delTx(id) {
-  const target = txs.find(t=>t.id===id);
-  if(target && isSystemTx(target)) return alert('Transaksi sistem tidak bisa dihapus dari menu ini.');
-  askConfirm('Hapus transaksi ini?', ()=>{
-    txs = txs.filter(t=>t.id!==id);
-    save();
-    refreshAllViews();
-  }, {title:'Hapus Transaksi', okText:'Hapus', danger:true});
-}
-
-function saveTx() {
-  const amount = parseA(document.getElementById('txAmt').value);
-  if(!amount) return alert('Nominal harus diisi!');
-  if(!selCat) return alert('Pilih kategori dulu!');
-  const note = document.getElementById('txNote').value.trim();
-  const date = document.getElementById('txDate').value || new Date().toISOString().split('T')[0];
-  const editId = document.getElementById('txEditId').value;
-  if(editId) {
-    const target = txs.find(x=>x.id===editId);
-    if(target) {
-      if(isSystemTx(target)) return alert('Transaksi sistem tidak bisa diedit.');
-      const prevTime = (new Date(target.date).toTimeString() || '00:00:00').slice(0,8);
-      target.type = curType;
-      target.amount = amount;
-      target.catId = selCat;
-      target.note = note;
-      target.date = new Date(date+'T'+prevTime).toISOString();
-    }
-  } else {
-    txs.push(normalizeTxItem({
-      id:'t'+Date.now(),
-      type:curType,
-      amount:amount,
-      catId:selCat,
-      note:note,
-      date:new Date(date+'T'+new Date().toTimeString().slice(0,8)).toISOString(),
-      source:'manual'
-    }));
-    lastTx = new Date().toISOString();
-  }
-  save();
-  closeModal('txModal');
-  refreshAllViews();
-}
-
-function delTxDetail(id) {
-  const target = txs.find(t=>t.id===id);
-  if(target && isSystemTx(target)) return alert('Transaksi sistem tidak bisa dihapus dari menu ini.');
-  askConfirm('Hapus transaksi ini?', ()=>{
-    txs = txs.filter(t=>t.id!==id);
-    save();
-    refreshAllViews();
-  }, {title:'Hapus Transaksi', okText:'Hapus', danger:true});
-}
-
-function hapusSemua() {
-  const label = curDetailFilter==='all' ? 'semua transaksi manual' : curDetailFilter==='income' ? 'semua pemasukan manual' : 'semua pengeluaran manual';
-  const removable = curDetailFilter==='all'
-    ? txs.filter(t=>!isSystemTx(t))
-    : txs.filter(t=>t.type===curDetailFilter && !isSystemTx(t));
-  if(!removable.length) return alert('Tidak ada transaksi manual yang bisa dihapus pada tampilan ini.');
-  askConfirm('Hapus '+label+'? Transaksi sistem akan tetap aman.', ()=>{
-    const removableIds = new Set(removable.map(t=>t.id));
-    txs = txs.filter(t=>!removableIds.has(t.id));
-    save();
-    refreshAllViews();
-  }, {title:'Hapus Data', okText:'Hapus', danger:true});
-}
-
-function handleImportFileV2(e) {
-  const file = e.target.files?.[0];
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = ev => {
-    try {
-      const parsed = JSON.parse(ev.target.result);
-      const data = parsed && parsed.data ? parsed.data : parsed;
-      if(!Array.isArray(data.txs) || !Array.isArray(data.cats) || !Array.isArray(data.goals) || !Array.isArray(data.hp)) {
-        throw new Error('Format backup tidak cocok');
-      }
-      askConfirm('Import akan menimpa data yang sekarang. Lanjut?', ()=>{
-        txs = Array.isArray(data.txs) ? data.txs.map(normalizeTxItem) : [];
-        cats = Array.isArray(data.cats) ? data.cats.map(normalizeCatItem) : [];
-        goals = Array.isArray(data.goals) ? data.goals.map(normalizeGoal) : [];
-        wajibFunds = Array.isArray(data.wajibFunds) ? data.wajibFunds.map(normalizeWajibFund) : [];
-        hp = Array.isArray(data.hp) ? data.hp.map(normalizeHPItem) : [];
-        sakuTxs = Array.isArray(data.sakuTxs) ? data.sakuTxs.map(normalizeSakuItem) : [];
-        saldoAwal = parseFloat(data.saldoAwal||0) || 0;
-        lastTx = data.lastTx || '';
-        targetSaldo = parseFloat(data.targetSaldo||0) || 0;
-        appPreferences = normalizeAppPreferences(data.appPreferences);
-        const theme = data.theme === 'dark' ? 'dark' : 'light';
-        document.documentElement.setAttribute('data-theme', theme);
-        savedTheme = theme;
-        savedThemeMode = data.themeMode === 'manual' ? 'manual' : 'auto';
-        storageSet('dk_themeMode', savedThemeMode);
-        syncThemeMode();
-        normalizeRuntimeState();
-        save();
-        refreshAllViews();
-        alert('Import berhasil.');
-      }, {title:'Import Data', okText:'Import', danger:true});
-    } catch(_) {
-      alert('File backup tidak valid.');
-    } finally {
-      e.target.value = '';
-    }
-  };
-  reader.readAsText(file);
-}
-
-function switchTab(name, btn) {
-  if(isSimpleMode() && name==='hutang') {
-    name = 'dashboard';
-    btn = getNavTabTarget('dashboard','tab') || btn;
-  }
-  activatePageUI(name);
-  if(btn) btn.classList.add('active');
-  render(name);
-}
-
-function switchNav(name, el) {
-  if(isSimpleMode() && name==='hutang') {
-    name = 'dashboard';
-    el = getNavTabTarget('dashboard','nav') || el;
-  }
-  activatePageUI(name);
-  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
-  if(el) el.classList.add('active');
-  render(name);
-}
-
-function render(name=currentPage) {
-  if(name==='dashboard') return renderDashboard();
-  if(name==='transaksi') return renderTxList();
-  if(name==='hutang') return renderHP();
-  if(name==='kelola') {
-    renderKelolaLayout();
-    renderCats();
-    renderStats();
-    renderSaldo();
-    renderTargetSaldo();
-    renderSaku();
-    renderWajibFunds();
-    if(typeof renderModeSettings === 'function') renderModeSettings();
-  }
-}
-
-function renderHP() {
-  const filtered = hp.filter(h=>h.type===curHP);
-  const el = document.getElementById('hpList');
-  const total = filtered.filter(h=>!h.lunas).reduce((sum,h)=>sum+h.amount,0);
-  const cashHold = filtered.filter(h=>h.type==='piutang' && h.lunas && h.settleState!=='banked').reduce((sum,h)=>sum+h.amount,0);
-  const sumEl = document.getElementById('hpSum');
-  if(sumEl) {
-    sumEl.textContent = filtered.length
-      ? (curHP==='piutang'
-        ? `Belum dibayar: ${fmt(total)}${cashHold?` | Di saku: ${fmt(cashHold)}`:''}`
-        : `Total hutangmu: ${fmt(total)}`)
-      : '';
-  }
-  if(!el) return;
-  if(!filtered.length) {
-    el.innerHTML = `<div class="tx-empty">${curHP==='piutang'?'Belum ada piutang':'Belum ada hutang'}</div>`;
-    return;
-  }
-  el.innerHTML = filtered.sort((a,b)=>new Date(b.date)-new Date(a.date)).map(h=>{
-    const status = getHPVisual(h);
-    return `
-    <div class="hp-item">
-      <div class="hp-av ${h.type}">${esc(h.name.charAt(0).toUpperCase())}</div>
-      <div class="hp-info">
-        <div class="hp-name">${esc(h.name)}</div>
-        <div class="hp-date">${new Date(h.date).toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric'})}${h.note?' · '+esc(h.note):''}</div>
-      </div>
-      <div class="hp-right">
-        <div class="hp-amt ${h.type}">${fmt(h.amount)}</div>
-        <span class="hp-status ${status.cls}">${status.text}</span>
-      </div>
-      <div class="hp-acts">
-        ${!h.lunas?`<button class="hbtn lunas" onclick="tandaiLunas('${h.id}')">OK</button>`:''}
-        ${(h.type==='piutang' && h.lunas && h.settleState!=='banked')?`<button class="hbtn bank" onclick="transferPiutangToBank('${h.id}')">Bank</button>`:''}
-        <button class="hbtn del" onclick="delHP('${h.id}')">Del</button>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-function renderGoals() {
-  const el = document.getElementById('goalsList');
-  if(!el) return;
-  const activeGoals = getActiveGoals();
-  const usedGoal = getTodayVotedGoal();
-  const simple = isSimpleMode();
-  renderGoalVoteBar();
-  renderGoalHistory();
-  if(!activeGoals.length) {
-    el.innerHTML = '<div class="empty">Belum ada goal aktif. Tap + untuk tambah atau cek riwayat pembelian di bawah.</div>';
-    return;
-  }
-  el.innerHTML = activeGoals.map(g=>{
-    const pct = g.target>0 ? Math.min(100,Math.round(g.terkumpul/g.target*100)) : 0;
-    const icon = getGoalIcon(g.name);
-    const votedToday = usedGoal && usedGoal.id===g.id;
-    const tokenUsedByOther = usedGoal && usedGoal.id!==g.id;
-    const canVote = !usedGoal;
-    const lastVoteLabel = g.last_voted_at ? new Date(g.last_voted_at).toLocaleDateString('id-ID', {day:'2-digit', month:'short'}) : 'Belum pernah';
-    const chips = simple ? '' : [
-      `<span class="goal-chip vote">${g.vote_count||0} vote</span>`,
-      g.vote_streak>=2 ? `<span class="goal-chip hot">Streak ${g.vote_streak} hari</span>` : '',
-      g.last_voted_at ? `<span class="goal-chip">Terakhir ${lastVoteLabel}</span>` : ''
-    ].filter(Boolean).join('');
-    const softSignal = !simple && g.vote_count>=3 ? '<div class="goal-soft-signal">Ini sering kamu pilih.</div>' : '';
-    const voteLabel = votedToday ? 'Sudah kamu pilih hari ini' : (tokenUsedByOther ? 'Token hari ini habis' : 'Vote Hari Ini');
-    const extraActions = simple ? '' : `<div class="goal-meta">${chips}</div>
-      ${softSignal}
-      <div class="goal-actions">
-        <button class="goal-act-btn vote" onclick="voteGoal('${g.id}')" ${canVote?'':'disabled'}>${voteLabel}</button>
-        <button class="goal-act-btn buy" onclick="markGoalPurchased('${g.id}')">Saya Sudah Beli</button>
-      </div>`;
-    return `<div class="goal-card">
-      <div class="goal-hd">
-        <div class="goal-name">${icon} ${esc(g.name)}</div>
-        <div class="goal-head-actions">
-          <div class="goal-pct">${pct}%</div>
-          <button class="gbtn add" onclick="openGoalModal('${g.id}')" title="Edit">Edit</button>
-          <button class="gbtn add" onclick="openSisihModal('${g.id}')" title="Sisihkan">+ Dana</button>
-          <button class="gbtn del" onclick="delGoal('${g.id}')" title="Hapus">Hapus</button>
-        </div>
-      </div>
-      <div class="prog-track"><div class="prog-fill" style="width:${pct}%"></div></div>
-      <div class="goal-ft"><span>Terkumpul: ${fmt(g.terkumpul)}</span><span>Target: ${fmt(g.target)}</span></div>
-      ${extraActions}
-      ${pct>=100?'<div style="font-size:12px;color:var(--green);font-weight:700;margin-top:6px;text-align:center;">Target tercapai!</div>':''}
-    </div>`;
-  }).join('');
-}
-
-function saveGoal() {
-  const name = document.getElementById('goalName').value.trim();
-  const target = parseA(document.getElementById('goalAmt').value);
-  if(!name) return alert('Nama goal wajib!');
-  if(!target) return alert('Target wajib!');
-  if(editGoalId) {
-    const goal = goals.find(x=>x.id===editGoalId);
-    if(goal) {
-      goal.name = name;
-      goal.target = target;
-      if(goal.terkumpul>target) goal.terkumpul = target;
-    }
-  } else {
-    goals.push(normalizeGoal({id:'g'+Date.now(), name, target, terkumpul:0}));
-  }
-  save();
-  closeModal('goalModal');
-  refreshAllViews();
-}
-
-function delGoal(id) {
-  askConfirm('Hapus goal ini?', ()=>{
-    goals = goals.filter(g=>g.id!==id);
-    save();
-    refreshAllViews();
-  }, {title:'Hapus Goal', okText:'Hapus', danger:true});
-}
-
-function saveSisih() {
-  const id = document.getElementById('sisihId').value;
-  const amount = parseA(document.getElementById('sisihAmt').value);
-  if(!amount) return alert('Jumlah wajib!');
-  const goal = goals.find(x=>x.id===id);
-  if(!goal) return;
-  const saldoTersedia = getRealBalance() - getReservedTotal();
-  if(amount>saldoTersedia) return alert('Saldo tersedia tidak cukup untuk disisihkan!');
-  goal.terkumpul += amount;
-  lastTx = new Date().toISOString();
-  save();
-  closeModal('sisihModal');
-  refreshAllViews();
-}
-
-function voteGoal(id) {
-  const goal = goals.find(x=>x.id===id && !x.is_purchased);
-  if(!goal) return;
-  const usedGoal = getTodayVotedGoal();
-  if(usedGoal) {
-    alert(usedGoal.id===id ? 'Kamu sudah vote goal ini hari ini.' : `Token hari ini sudah dipakai untuk "${usedGoal.name}".`);
-    return;
-  }
-  const now = new Date();
-  const prevDay = goal.last_voted_at ? dayKeyLocal(goal.last_voted_at) : '';
-  const yesterday = new Date(now);
-  yesterday.setDate(yesterday.getDate()-1);
-  goal.vote_count = Number(goal.vote_count||0) + 1;
-  goal.vote_streak = prevDay && prevDay===dayKeyLocal(yesterday) ? Number(goal.vote_streak||0)+1 : 1;
-  goal.last_voted_at = now.toISOString();
-  lastTx = now.toISOString();
-  save();
-  refreshAllViews();
-}
-
-function markGoalPurchased(id) {
-  const goal = goals.find(x=>x.id===id && !x.is_purchased);
-  if(!goal) return;
-  askConfirm(`Pindahkan "${goal.name}" ke riwayat pembelian?`, ()=>{
-    goal.is_purchased = true;
-    goal.purchased_at = new Date().toISOString();
-    save();
-    refreshAllViews();
-  }, {title:'Saya Sudah Beli', okText:'Pindahkan'});
 }
 
 function getActionHubItems() {
   const items = [
-    {key:'tx', kicker:'Utama', label:'Tambah Transaksi', desc:'Catat pemasukan atau pengeluaran harian.', primary:true, action:()=>openTxModal()},
-    {key:'sakuIn', kicker:'Cash', label:'Saldo Saku Masuk', desc:'Simpan uang cash yang belum masuk bank.', action:()=>openSakuModal('in')},
-    {key:'sakuOut', kicker:'Cash', label:'Saldo Saku Keluar', desc:'Catat pengeluaran cash di luar bank.', action:()=>openSakuModal('out')},
-    {key:'goal', kicker:'Rencana', label:'Tambah Goal', desc:'Buat target tabungan atau wishlist baru.', action:()=>openGoalModal()},
-    {key:'wajib', kicker:'Wajib', label:'Tambah Dana Wajib', desc:'Catat kebutuhan penting masa depan.', action:()=>openWajibModal()},
-    {key:'piutang', kicker:'Piutang', label:'Tambah Piutang', desc:'Catat uang yang kamu pinjamkan.', action:()=>{ curHP='piutang'; renderHP(); openHPModal(); }},
-    {key:'hutang', kicker:'Hutang', label:'Tambah Hutang', desc:'Catat uang yang kamu terima sebagai hutang.', action:()=>{ curHP='hutang'; renderHP(); openHPModal(); }},
-    {key:'kategori', kicker:'Kelola', label:'Tambah Kategori', desc:'Tambah kategori transaksi baru bila perlu.', action:()=>openAddCatModal()}
+    {key:'tx', emoji:'🧾', kicker:'Utama', label:'Transaksi', primary:true, action:()=>openTxModal()},
+    {key:'wallets', emoji:'💳', kicker:'Dompet', label:'Kelola Dompet', action:()=>openWalletModal()},
+    {key:'sakuIn', emoji:'💵', kicker:'Cash', label:'Saku Masuk', action:()=>openSakuModal('in')},
+    {key:'sakuOut', emoji:'🪙', kicker:'Cash', label:'Saku Keluar', action:()=>openSakuModal('out')},
+    {key:'goal', emoji:'🎯', kicker:'Target', label:'Goal', action:()=>openGoalModal()},
+    {key:'wajib', emoji:'📌', kicker:'Wajib', label:'Dana Wajib', action:()=>openWajibModal()},
+    {key:'piutang', emoji:'🤝', kicker:'Piutang', label:'Tambah Piutang', action:()=>{ curHP='piutang'; renderHP(); openHPModal(); }},
+    {key:'hutang', emoji:'🏦', kicker:'Hutang', label:'Tambah Hutang', action:()=>{ curHP='hutang'; renderHP(); openHPModal(); }}
   ];
   if(isSimpleMode()) {
-    return items.filter(item=>['tx','sakuIn','sakuOut','goal'].includes(item.key));
+    return items.filter(item=>['tx','wallets','sakuIn','sakuOut','goal'].includes(item.key));
   }
-  return items;
+  if(currentPage === 'hutang') {
+    return items.filter(item=>['piutang','hutang','tx','sakuIn','sakuOut','wallets'].includes(item.key));
+  }
+  return items.filter(item=>['tx','wallets','sakuIn','sakuOut','goal','wajib'].includes(item.key));
 }
 
 function renderActionHub() {
@@ -3781,39 +3007,17 @@ function openActionHub() {
   openModal('actionHubModal');
 }
 
-function updateFab() {
-  const fab = document.getElementById('mainFab');
-  const hint = document.getElementById('fabHint');
-  if(!fab) return;
-  fab.title = 'Aksi cepat';
-  fab.setAttribute('aria-label', 'Aksi cepat');
-  fab.innerHTML = '＋';
-  if(hint) {
-    hint.style.display = 'none';
-  }
-}
-
-function handleMainFab() {
-  openActionHub();
-}
-
 function applySurfaceSimplification() {
+  const simple = isSimpleMode();
   ['goalQuickAddBtn','wajibQuickAddBtn','hpQuickAddBtn'].forEach(id=>{
     const el = document.getElementById(id);
-    if(el) el.style.display = 'none';
+    if(el) el.style.display = simple ? 'none' : '';
   });
   const oldDonut = document.getElementById('donutWrap')?.closest('.sec');
   const oldTop = document.getElementById('topList')?.closest('.sec');
-  if(oldDonut) oldDonut.style.display = 'none';
-  if(oldTop) oldTop.style.display = 'none';
+  if(oldDonut) oldDonut.style.display = simple ? 'none' : '';
+  if(oldTop) oldTop.style.display = simple ? 'none' : '';
 }
-
-const DEFAULT_WALLETS = {
-  operational: { id:'operational', name:'Dompet Operasional', bank:'BRImo', color:'operational', openingBalance:0, locked:false, note:'Saldo aktif untuk transaksi harian.' },
-  emergency: { id:'emergency', name:'Benteng Darurat', bank:'Jago Syariah', color:'emergency', baseBalance:0, locked:true, note:'Cadangan darurat yang tidak dipakai belanja biasa.' },
-  investment: { id:'investment', name:'Pohon Investasi', bank:'Bibit', color:'investment', baseBalance:0, locked:true, note:'Saldo pertumbuhan untuk masa depan.' },
-  business: { id:'business', name:'Modal Bisnis Orderku', bank:'Orderku', color:'business', baseBalance:0, locked:true, note:'Modal usaha khusus jualan pulsa, data, dan diamond.' }
-};
 
 function normalizeWalletState(input={}) {
   const source = input && typeof input === 'object' ? input : {};
@@ -3847,13 +3051,13 @@ function normalizeWalletState(input={}) {
 
 function ensureDefaultCategories() {
   const defaults = [
+    {name:'Gaji', emoji:'💼', type:'income'},
+    {name:'Pemasukan Lain', emoji:'📥', type:'income'},
     {name:'Makan', emoji:'🍽️', type:'expense'},
     {name:'Transport', emoji:'🛵', type:'expense'},
-    {name:'Print Skripsi', emoji:'🖨️', type:'expense'},
     {name:'Tagihan', emoji:'🧾', type:'expense'},
-    {name:'Jajan', emoji:'🧋', type:'expense'},
-    {name:'Kulakan/Modal', emoji:'📦', type:'expense'},
-    {name:'Untung Jualan', emoji:'🛍️', type:'income'}
+    {name:'Belanja', emoji:'🛒', type:'expense'},
+    {name:'Lain-lain', emoji:'📦', type:'expense'}
   ];
   defaults.forEach(item=>{
     const exists = cats.some(cat => cat.type===item.type && String(cat.name||'').toLowerCase()===item.name.toLowerCase());
@@ -3923,60 +3127,6 @@ function getAppStateSnapshot() {
   };
 }
 
-function normalizeTxItem(tx={}) {
-  const type = tx.type === 'income' ? 'income' : 'expense';
-  const parsedDate = new Date(tx.date || Date.now());
-  return {
-    id: tx.id || ('t'+Date.now()+Math.floor(Math.random()*1000)),
-    type,
-    amount: Math.max(0, parseFloat(tx.amount||0)),
-    catId: tx.catId || (type === 'income' ? getIncomeCatId() : getExpenseCatId()),
-    note: tx.note || '',
-    date: Number.isNaN(parsedDate.getTime()) ? new Date().toISOString() : parsedDate.toISOString(),
-    source: tx.source || 'manual',
-    sourceId: tx.sourceId || null,
-    walletId: tx.walletId || 'operational',
-    flowTag: tx.flowTag || ''
-  };
-}
-
-function normalizeRuntimeState() {
-  cats = Array.isArray(cats) ? cats.map(normalizeCatItem) : [];
-  ensureDefaultCategories();
-  txs = Array.isArray(txs) ? txs.map(normalizeTxItem) : [];
-  goals = Array.isArray(goals) ? goals.map(normalizeGoal) : [];
-  wajibFunds = Array.isArray(wajibFunds) ? wajibFunds.map(normalizeWajibFund) : [];
-  hp = Array.isArray(hp) ? hp.map(normalizeHPItem) : [];
-  sakuTxs = Array.isArray(sakuTxs) ? sakuTxs.map(normalizeSakuItem) : [];
-  wallets = normalizeWalletState(wallets);
-  saldoAwal = wallets.operational.openingBalance;
-  targetSaldo = parseFloat(targetSaldo||0) || 0;
-  appPreferences = normalizeAppPreferences(appPreferences);
-}
-
-function getRealBalance() {
-  return getOperationalBalance();
-}
-
-function save() {
-  wallets.operational.openingBalance = getOperationalOpeningBalance();
-  saldoAwal = wallets.operational.openingBalance;
-  storageSet('dk_txs', JSON.stringify(txs));
-  storageSet('dk_cats', JSON.stringify(cats));
-  storageSet('dk_goals', JSON.stringify(goals));
-  storageSet('dk_wajibFunds', JSON.stringify(wajibFunds));
-  storageSet('dk_hp', JSON.stringify(hp));
-  storageSet('dk_sakuTxs', JSON.stringify(sakuTxs));
-  storageSet('dk_wallets', JSON.stringify(wallets));
-  storageSet('dk_saldo', saldoAwal);
-  storageSet('dk_targetSaldo', targetSaldo);
-  storageSet('dk_themeMode', savedThemeMode);
-  storageSet('dk_theme', document.documentElement.getAttribute('data-theme')||'light');
-  saveAppPreferences();
-  if(lastTx) storageSet('dk_lastTx', lastTx);
-  else storageRemove('dk_lastTx');
-}
-
 function renderWalletCards() {
   const map = {
     operational: 'walletOperationalAmt',
@@ -4020,40 +3170,6 @@ function saveWalletModal() {
   save();
   closeModal('walletModal');
   refreshAllViews();
-}
-
-function openSaldoModal() {
-  openWalletModal();
-}
-
-function saveSaldo() {
-  saveWalletModal();
-}
-
-function resetSaldo() {
-  askConfirm('Reset dompet operasional ke nol? Dompet lain tetap aman.', ()=>{
-    wallets.operational.openingBalance = 0;
-    saldoAwal = 0;
-    save();
-    refreshAllViews();
-  }, {title:'Reset Operasional', okText:'Reset', danger:true});
-}
-
-function renderSaldo() {
-  const value = fmt(getOperationalOpeningBalance());
-  const a = document.getElementById('saldoAwalVal');
-  const b = document.getElementById('saldoAwalValProxy');
-  if(a) a.textContent = value;
-  if(b) b.textContent = value;
-  renderWalletCards();
-}
-
-function renderTargetSaldo() {
-  const value = fmt(targetSaldo>0?targetSaldo:getOperationalOpeningBalance());
-  const a = document.getElementById('targetSaldoVal');
-  const b = document.getElementById('targetSaldoValProxy');
-  if(a) a.textContent = value;
-  if(b) b.textContent = value;
 }
 
 function injectWalletSectionIntoKelola() {
@@ -4226,264 +3342,11 @@ function renderFinancialReports() {
   }
 }
 
-function renderDashboard() {
-  const now = new Date();
-  const flow = getMonthCashflow(now);
-  const summary = getMentalAccountingSummary();
-  const danaTersisih = summary.reservedGoal + summary.reservedWajib;
-  const saldoTersedia = summary.operational - danaTersisih;
-  const balEl = document.getElementById('balAmt');
-  if(balEl) {
-    balEl.textContent = fmtS(saldoTersedia);
-    balEl.style.color = saldoTersedia < 0 ? '#ff6b6b' : 'white';
-  }
-  const balSub = document.getElementById('balSub');
-  if(balSub) {
-    const totalAset = summary.operational + summary.emergency + summary.investment + summary.business + summary.saku;
-    balSub.textContent = `${MF[now.getMonth()]} ${now.getFullYear()} · Operasional ${fmt(summary.operational)} · Aset ${fmt(totalAset)}`;
-  }
-  const totalInc = document.getElementById('totalInc');
-  const totalExp = document.getElementById('totalExp');
-  const badge = document.getElementById('balBadge');
-  const monthLabel = document.getElementById('donutMonth');
-  const weeklyLabel = document.getElementById('weeklyChartLabel');
-  const monthlyLabel = document.getElementById('monthlyChartLabel');
-  if(totalInc) totalInc.textContent = fmt(flow.income);
-  if(totalExp) totalExp.textContent = fmt(flow.expense);
-  if(monthLabel) monthLabel.textContent = MF[now.getMonth()];
-  if(weeklyLabel) weeklyLabel.textContent = 'Operasional';
-  if(monthlyLabel) monthlyLabel.textContent = MF[now.getMonth()];
-  if(badge) {
-    const targetAktif = targetSaldo>0 ? targetSaldo : getOperationalOpeningBalance();
-    const ratio = flow.income>0 ? flow.expense/flow.income : 0;
-    if(summary.operational < getOperationalOpeningBalance()) {
-      badge.textContent = 'BOROS ' + fmtS(summary.operational - getOperationalOpeningBalance());
-      badge.className = 'balance-badge badge-danger';
-    } else if(targetAktif>0 && summary.operational >= targetAktif) {
-      badge.textContent = 'UNTUNG +' + fmtN(summary.operational-targetAktif);
-      badge.className = 'balance-badge badge-profit';
-    } else if(ratio >= 1) {
-      badge.textContent = 'Boros';
-      badge.className = 'balance-badge badge-danger';
-    } else if(ratio >= 0.8) {
-      badge.textContent = 'Warning';
-      badge.className = 'balance-badge badge-warning';
-    } else {
-      badge.textContent = 'Aman';
-      badge.className = 'balance-badge badge-aman';
-    }
-  }
-  renderWalletCards();
-  renderWalletProxyCards();
-  renderGoals();
-  renderWajibFunds();
-  renderFinancialReports();
-  checkAlert();
-}
-
-function renderKelolaLayout() {
-  const original = typeof window.__dompetkuOriginalRenderKelola === 'function'
-    ? window.__dompetkuOriginalRenderKelola
-    : null;
-  if(original) {
-    original();
-  } else {
-    const wrap = document.getElementById('kelolaWrap');
-    if(wrap && !wrap.innerHTML.trim()) wrap.innerHTML = '<div class="sec"><div class="empty">Kelola siap digunakan.</div></div>';
-  }
-  injectWalletSectionIntoKelola();
-}
-
-if(typeof window.__dompetkuOriginalRenderKelola !== 'function') {
-  window.__dompetkuOriginalRenderKelola = renderKelolaLayout;
-}
-
-function openTargetModal() {
-  const current = targetSaldo>0 ? targetSaldo : getOperationalOpeningBalance();
-  document.getElementById('targetInp').value = current>0 ? current.toLocaleString('id-ID') : '';
-  document.getElementById('targetHint').textContent = current>0 ? '= ' + fmt(current) : '';
-  openModal('targetModal');
-}
-
-function saveTx() {
-  const amount = parseA(document.getElementById('txAmt').value);
-  if(!amount) return alert('Nominal harus diisi!');
-  if(!selCat) return alert('Pilih kategori dulu!');
-  const note = document.getElementById('txNote').value.trim();
-  const date = document.getElementById('txDate').value || new Date().toISOString().split('T')[0];
-  const editId = document.getElementById('txEditId').value;
-  const category = cats.find(cat=>cat.id===selCat);
-  const isBusinessTopup = category?.type==='expense' && String(category?.name||'').toLowerCase()==='kulakan/modal';
-  const basePayload = {
-    type: curType,
-    amount,
-    catId: selCat,
-    note,
-    walletId: 'operational',
-    flowTag: isBusinessTopup ? 'business_topup' : ''
-  };
-  if(editId) {
-    const target = txs.find(x=>x.id===editId);
-    if(target) {
-      if(isSystemTx(target)) return alert('Transaksi sistem tidak bisa diedit.');
-      const prevTime = (new Date(target.date).toTimeString() || '00:00:00').slice(0,8);
-      Object.assign(target, basePayload);
-      target.date = new Date(date+'T'+prevTime).toISOString();
-    }
-  } else {
-    txs.push(normalizeTxItem({
-      id:'t'+Date.now(),
-      ...basePayload,
-      date:new Date(date+'T'+new Date().toTimeString().slice(0,8)).toISOString(),
-      source:'manual'
-    }));
-    lastTx = new Date().toISOString();
-  }
-  save();
-  closeModal('txModal');
-  refreshAllViews();
-}
-
-function renderCatGrid() {
-  const options = cats
-    .filter(c=>c.type===curType)
-    .filter(c=>{
-      const lower = String(c.name || '').toLowerCase();
-      if(!isWalletVisible('business') && (lower === 'kulakan/modal' || lower === 'untung jualan')) return false;
-      return true;
-    })
-    .sort((a,b)=>{
-      const special = ['Untung Jualan','Kulakan/Modal'];
-      const ai = special.includes(a.name) ? -1 : 0;
-      const bi = special.includes(b.name) ? -1 : 0;
-      if(ai!==bi) return ai-bi;
-      return String(a.name||'').localeCompare(String(b.name||''), 'id');
-    });
-  document.getElementById('catGrid').innerHTML = options.map(c=>`<div class="cat-opt${selCat===c.id?' sel':''}" onclick="selCatFn('${c.id}')"><div class="cat-opt-icon">${c.emoji}</div><div class="cat-opt-name">${esc(c.name)}</div></div>`).join('');
-}
-
-function openTxModal() {
-  document.getElementById('txModalTitle').textContent='Tambah Transaksi Operasional';
-  document.getElementById('txEditId').value='';
-  curType='expense';
-  selCat=null;
-  document.getElementById('txAmt').value='';
-  document.getElementById('txAmtHint').textContent='';
-  document.getElementById('txNote').value='';
-  document.getElementById('txDate').value=new Date().toISOString().split('T')[0];
-  setType('expense');
-  openModal('txModal');
-}
-
-function getActionHubItems() {
-  const items = [
-    {key:'tx', emoji:'🧾', kicker:'Utama', label:'Transaksi', primary:true, action:()=>openTxModal()},
-    {key:'wallets', emoji:'💳', kicker:'Dompet', label:'Kelola Dompet', action:()=>openWalletModal()},
-    {key:'sakuIn', emoji:'💵', kicker:'Cash', label:'Saku Masuk', action:()=>openSakuModal('in')},
-    {key:'sakuOut', emoji:'🪙', kicker:'Cash', label:'Saku Keluar', action:()=>openSakuModal('out')},
-    {key:'goal', emoji:'🎯', kicker:'Target', label:'Goal', action:()=>openGoalModal()},
-    {key:'wajib', emoji:'📌', kicker:'Wajib', label:'Dana Wajib', action:()=>openWajibModal()},
-    {key:'piutang', emoji:'🤝', kicker:'Piutang', label:'Tambah Piutang', action:()=>{ curHP='piutang'; renderHP(); openHPModal(); }},
-    {key:'hutang', emoji:'🏦', kicker:'Hutang', label:'Tambah Hutang', action:()=>{ curHP='hutang'; renderHP(); openHPModal(); }}
-  ];
-  if(isSimpleMode()) {
-    return items.filter(item=>['tx','wallets','sakuIn','sakuOut','goal'].includes(item.key));
-  }
-  if(currentPage === 'hutang') {
-    return items.filter(item=>['piutang','hutang','tx','sakuIn','sakuOut','wallets'].includes(item.key));
-  }
-  return items.filter(item=>['tx','wallets','sakuIn','sakuOut','goal','wajib'].includes(item.key));
-}
-
-function exportData() {
-  const payload = getAppStateSnapshot();
-  const blob = new Blob([JSON.stringify(payload,null,2)], {type:'application/json'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  const dt = new Date();
-  const stamp = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
-  a.href = url;
-  a.download = `dompetku-backup-${stamp}.json`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
-
-function handleImportFileV2(e) {
-  const file = e.target.files?.[0];
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = ev => {
-    try {
-      const parsed = JSON.parse(ev.target.result);
-      const data = parsed?.data || parsed;
-      const transactions = data.transactions || data.txs;
-      const categories = data.categories || data.cats;
-      if(!Array.isArray(transactions) || !Array.isArray(categories) || !Array.isArray(data.goals || [] ) || !Array.isArray(data.hp || [])) {
-        throw new Error('Format backup tidak cocok');
-      }
-      askConfirm('Import akan menimpa data yang sekarang. Lanjut?', ()=>{
-        txs = transactions.map(normalizeTxItem);
-        cats = categories.map(normalizeCatItem);
-        goals = Array.isArray(data.goals) ? data.goals.map(normalizeGoal) : [];
-        wajibFunds = Array.isArray(data.wajibFunds) ? data.wajibFunds.map(normalizeWajibFund) : [];
-        hp = Array.isArray(data.hp) ? data.hp.map(normalizeHPItem) : [];
-        sakuTxs = Array.isArray(data.sakuTxs) ? data.sakuTxs.map(normalizeSakuItem) : [];
-        wallets = normalizeWalletState(data.wallets || null);
-        saldoAwal = parseFloat(data.meta?.targetSaldo ?? data.saldoAwal ?? wallets.operational.openingBalance ?? 0) || wallets.operational.openingBalance || 0;
-        wallets.operational.openingBalance = parseFloat(data.wallets?.operational?.openingBalance ?? data.saldoAwal ?? wallets.operational.openingBalance ?? 0) || 0;
-        saldoAwal = wallets.operational.openingBalance;
-        lastTx = data.meta?.lastTx || data.lastTx || '';
-        targetSaldo = parseFloat(data.meta?.targetSaldo ?? data.targetSaldo ?? 0) || 0;
-        appPreferences = normalizeAppPreferences(data.preferences?.appPreferences || data.appPreferences);
-        const theme = data.preferences?.theme === 'dark' || data.theme === 'dark' ? 'dark' : 'light';
-        document.documentElement.setAttribute('data-theme', theme);
-        savedTheme = theme;
-        savedThemeMode = (data.preferences?.themeMode || data.themeMode) === 'manual' ? 'manual' : 'auto';
-        storageSet('dk_themeMode', savedThemeMode);
-        syncThemeMode();
-        normalizeRuntimeState();
-        save();
-        refreshAllViews();
-        alert('Import berhasil.');
-      }, {title:'Import Data', okText:'Import', danger:true});
-    } catch(err) {
-      alert('File backup tidak valid.');
-    } finally {
-      e.target.value = '';
-    }
-  };
-  reader.readAsText(file);
-}
-
-function renderSaku() {
-  const balance = getSakuBalance();
-  const value = fmt(balance);
-  const text = balance>0
-    ? `Ada ${fmt(balance)} uang cash di luar bank. Pakai tombol "Ke Bank" saat uang ini sudah benar-benar masuk BRImo/bank.`
-    : 'Pakai ini untuk uang cash yang belum masuk BRImo/bank, termasuk pelunasan piutang yang masih kamu pegang.';
-  const a = document.getElementById('sakuVal');
-  const b = document.getElementById('sakuValProxy');
-  const ia = document.getElementById('sakuInfo');
-  const ib = document.getElementById('sakuInfoProxy');
-  if(a) a.textContent = value;
-  if(b) b.textContent = value;
-  if(ia) ia.textContent = text;
-  if(ib) ib.textContent = text;
-  renderWalletProxyCards();
-}
-
 function saveDeveloperEmail(value='') {
   appPreferences.developer_email = String(value || '').trim();
   saveAppPreferences();
   renderFeedbackPanel();
 }
-
-let setupDraft = {
-  mode: 'simple',
-  wallets: { emergency:false, investment:false, business:false }
-};
 
 function syncSetupUI() {
   const simpleCard = document.getElementById('setupModeSimple');
@@ -4586,8 +3449,6 @@ function normalizeFeedbackItem(item={}) {
     createdAt: item.createdAt || new Date().toISOString()
   };
 }
-
-feedbackLog = Array.isArray(feedbackLog) ? feedbackLog.map(normalizeFeedbackItem) : [];
 
 function saveFeedbackLog() {
   storageSet('dk_feedback_log', JSON.stringify(feedbackLog));
@@ -4697,187 +3558,6 @@ function renderFeedbackPanel() {
   }
 }
 
-function refreshAllViews() {
-  if(currentPage==='kelola') renderKelolaLayout();
-  renderDashboard();
-  renderTxList();
-  renderHP();
-  renderSaldo();
-  renderSaku();
-  renderTargetSaldo();
-  renderWajibFunds();
-  renderCats();
-  renderStats();
-  renderWalletModuleSettings();
-  renderFeedbackPanel();
-  if(typeof renderModeSettings === 'function') renderModeSettings();
-  updateFab();
-  applyAppMode();
-  refreshOpenDetailIfNeeded();
-}
-
-function renderKelolaLayout() {
-  const wrap = document.getElementById('kelolaWrap');
-  if(!wrap) return;
-  wrap.innerHTML = `
-    <div class="sec">
-      <div class="fold-card open" id="foldMentalWallets">
-        <div class="fold-head" onclick="toggleFold('foldMentalWallets')">
-          <div class="fold-left">
-            <div class="fold-icon">💳</div>
-            <div>
-              <div class="fold-title">Mental Accounting</div>
-              <div class="fold-sub">Empat dompet, empat fungsi.</div>
-            </div>
-          </div>
-          <div class="fold-arrow">⌄</div>
-        </div>
-        <div class="fold-body">
-          <div class="wallet-grid" style="margin:0;">
-            <div class="wallet-card operational" onclick="openWalletModal()"><div class="wallet-kicker">BRImo</div><div class="wallet-name">Dompet Operasional</div><div class="wallet-amount" id="walletOperationalAmtProxy">Rp 0</div><div class="wallet-note">Transaksi harian aktif.</div></div>
-            <div class="wallet-card emergency" onclick="openWalletModal()"><div class="wallet-kicker">Jago Syariah</div><div class="wallet-name">Benteng Darurat</div><div class="wallet-amount" id="walletEmergencyAmtProxy">Rp 0</div><div class="wallet-note">Cadangan pasif darurat.</div></div>
-            <div class="wallet-card investment" onclick="openWalletModal()"><div class="wallet-kicker">Bibit</div><div class="wallet-name">Pohon Investasi</div><div class="wallet-amount" id="walletInvestmentAmtProxy">Rp 0</div><div class="wallet-note">Pertumbuhan jangka panjang.</div></div>
-            <div class="wallet-card business" onclick="openWalletModal()"><div class="wallet-kicker">Orderku</div><div class="wallet-name">Modal Bisnis Orderku</div><div class="wallet-amount" id="walletBusinessAmtProxy">Rp 0</div><div class="wallet-note">Modal khusus jualan.</div></div>
-          </div>
-          <div class="pref-stack" id="walletModuleSettings"></div>
-          <button class="btn-ghost" style="margin-top:10px;" onclick="openWalletModal()">Edit Dompet</button>
-        </div>
-      </div>
-    </div>
-    <div class="sec">
-      <div class="fold-card open" id="foldKeuangan">
-        <div class="fold-head" onclick="toggleFold('foldKeuangan')">
-          <div class="fold-left">
-            <div class="fold-icon">💼</div>
-            <div>
-              <div class="fold-title">Ringkasan Uang</div>
-              <div class="fold-sub">Target, saku, backup.</div>
-            </div>
-          </div>
-          <div class="fold-arrow">⌄</div>
-        </div>
-        <div class="fold-body">
-          <div class="saldo-card" onclick="openWalletModal()">
-            <div>
-              <div class="saldo-label">Tap untuk kelola dompet operasional</div>
-              <div class="saldo-val" id="saldoAwalValProxy">Rp 0</div>
-            </div>
-            <div style="font-size:28px;">💰</div>
-          </div>
-          <div class="saldo-card" onclick="openTargetModal()" style="margin-top:10px;">
-            <div>
-              <div class="saldo-label">Tap untuk atur target untung</div>
-              <div class="saldo-val" id="targetSaldoValProxy">Rp 0</div>
-            </div>
-            <div style="font-size:28px;">🎯</div>
-          </div>
-          <div class="saldo-card" style="margin-top:10px;">
-            <div>
-              <div class="saldo-label">Uang cash di luar bank</div>
-              <div class="saldo-val" id="sakuValProxy">Rp 0</div>
-            </div>
-            <div style="font-size:28px;">💵</div>
-          </div>
-          <div class="triple-row">
-            <button class="btn-mini" onclick="openSakuModal('in')">+ Masuk</button>
-            <button class="btn-mini" onclick="openSakuModal('out')">- Keluar</button>
-            <button class="btn-mini primary" onclick="openTransferSakuModal()">Ke Bank</button>
-          </div>
-          <div class="saku-note" id="sakuInfoProxy">Pakai ini untuk uang cash yang belum masuk bank.</div>
-          <div class="backup-row">
-            <button class="btn-ghost" onclick="exportData()">⬇️ Export Data</button>
-            <button class="btn-ghost" onclick="triggerImport()">⬆️ Import Data</button>
-          </div>
-          <button class="btn-reset" onclick="resetSaldo()">Reset Dompet Operasional</button>
-          <div class="mode-card">
-            <div class="mode-title">App Mode</div>
-              <div class="mode-sub">Pilih sederhana atau lengkap.</div>
-            <div class="mode-options">
-              <label class="mode-option">
-                <input type="radio" name="appMode" value="simple" onchange="setAppMode('simple')">
-                <div>
-                  <strong>Mode Sederhana</strong>
-                  <span>Fokus ke saldo, transaksi, goal, dan saldo saku.</span>
-                </div>
-              </label>
-              <label class="mode-option">
-                <input type="radio" name="appMode" value="full" onchange="setAppMode('full')">
-                <div>
-                  <strong>Mode Lengkap</strong>
-                  <span>Tampilkan semua fitur termasuk hutang-piutang, Dana Wajib, Vote Harian, dan bisnis.</span>
-                </div>
-              </label>
-            </div>
-            <button class="btn-ghost" style="margin-top:10px;" onclick="openOnboardingModal(true)">Setup Ulang Tampilan</button>
-          </div>
-          <div class="mode-card">
-            <div class="mode-title">Masukan Pengguna</div>
-            <div class="mode-sub">Kumpulkan saran, bug, dan kebutuhan user.</div>
-            <div class="pref-stack" style="margin-top:10px;">
-              <div>
-                <label class="flbl" style="margin-bottom:6px;">Email Pengembang</label>
-                <input class="finp" type="email" id="developerEmailInp" placeholder="contoh: kamu@email.com" oninput="saveDeveloperEmail(this.value)">
-              </div>
-            </div>
-            <div class="backup-row" style="margin-top:10px;">
-              <button class="btn-ghost" onclick="openFeedbackModal()">Tulis Masukan</button>
-              <button class="btn-ghost" onclick="exportFeedbackLog()">Export Masukan</button>
-            </div>
-            <div class="feedback-status" id="feedbackStatus">Belum ada email pengembang. Versi ini bisa simpan lokal dan kirim via email kalau email diatur.</div>
-            <div class="feedback-log" id="feedbackLogList"></div>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="sec">
-      <div class="fold-card" id="foldKategori">
-        <div class="fold-head" onclick="toggleFold('foldKategori')">
-          <div class="fold-left">
-            <div class="fold-icon">📂</div>
-            <div>
-              <div class="fold-title">Kategori</div>
-              <div class="fold-sub">Rapikan jenis transaksi.</div>
-            </div>
-          </div>
-          <div class="fold-arrow">⌄</div>
-        </div>
-        <div class="fold-body">
-          <div class="sec-hd">
-            <span class="sec-title">Daftar Kategori</span>
-            <button class="link-btn" onclick="openAddCatModal()">+ Tambah</button>
-          </div>
-          <div class="cat-list" id="catListProxy"></div>
-        </div>
-      </div>
-    </div>
-    <div class="sec" style="margin-bottom:16px;">
-      <div class="fold-card" id="foldStatistik">
-        <div class="fold-head" onclick="toggleFold('foldStatistik')">
-          <div class="fold-left">
-            <div class="fold-icon">📊</div>
-            <div>
-              <div class="fold-title">Statistik 6 Bulan</div>
-              <div class="fold-sub">Lihat tren singkat.</div>
-            </div>
-          </div>
-          <div class="fold-arrow">⌄</div>
-        </div>
-        <div class="fold-body">
-          <div class="trend-card">
-            <div class="bar-chart" id="barChartProxy"></div>
-            <div class="chart-legend">
-              <div class="cl-item"><div class="cl-dot" style="background:var(--green)"></div>Pemasukan</div>
-              <div class="cl-item"><div class="cl-dot" style="background:var(--red)"></div>Pengeluaran</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>`;
-}
-
-// Core single-user mode: keep only one main balance and manual income/expense.
-const CORE_HIDDEN_CATEGORY_NAMES = ['kulakan/modal', 'untung jualan'];
-
 function isCoreHiddenCategory(cat={}) {
   return CORE_HIDDEN_CATEGORY_NAMES.includes(String(cat.name || '').toLowerCase());
 }
@@ -4892,414 +3572,7 @@ function getCoreManualTxs() {
     .filter(tx => !tx.source || tx.source === 'manual');
 }
 
-function ensureDefaultCategories() {
-  const defaults = [
-    {name:'Gaji', emoji:'💼', type:'income'},
-    {name:'Pemasukan Lain', emoji:'📥', type:'income'},
-    {name:'Makan', emoji:'🍽️', type:'expense'},
-    {name:'Transport', emoji:'🛵', type:'expense'},
-    {name:'Tagihan', emoji:'🧾', type:'expense'},
-    {name:'Belanja', emoji:'🛒', type:'expense'},
-    {name:'Lain-lain', emoji:'📦', type:'expense'}
-  ];
-  defaults.forEach(item=>{
-    const exists = cats.some(cat => cat.type===item.type && String(cat.name||'').toLowerCase()===item.name.toLowerCase());
-    if(!exists) cats.push({ id:'c'+Date.now()+Math.floor(Math.random()*1000), ...item });
-  });
-}
 
-function normalizeRuntimeState() {
-  cats = Array.isArray(cats) ? cats.map(normalizeCatItem) : [];
-  txs = Array.isArray(txs) ? txs.map(normalizeTxItem) : [];
-  goals = Array.isArray(goals) ? goals.map(normalizeGoal) : [];
-  wajibFunds = Array.isArray(wajibFunds) ? wajibFunds.map(normalizeWajibFund) : [];
-  hp = Array.isArray(hp) ? hp.map(normalizeHPItem) : [];
-  sakuTxs = Array.isArray(sakuTxs) ? sakuTxs.map(normalizeSakuItem) : [];
-  ensureDefaultCategories();
-  saldoAwal = parseFloat(saldoAwal || wallets?.operational?.openingBalance || 0) || 0;
-  targetSaldo = 0;
-  wallets = normalizeWalletState(wallets);
-  wallets.operational.openingBalance = saldoAwal;
-  appPreferences = normalizeAppPreferences(appPreferences);
-  appPreferences.app_mode = 'simple';
-  appPreferences.hint_seen = true;
-  appPreferences.onboarding_done = true;
-  appPreferences.wallet_visibility = {
-    operational: true,
-    emergency: false,
-    investment: false,
-    business: false
-  };
-}
-
-function save() {
-  wallets = normalizeWalletState(wallets);
-  wallets.operational.openingBalance = saldoAwal;
-  storageSet('dk_txs', JSON.stringify(txs));
-  storageSet('dk_cats', JSON.stringify(cats));
-  storageSet('dk_goals', JSON.stringify(goals));
-  storageSet('dk_wajibFunds', JSON.stringify(wajibFunds));
-  storageSet('dk_hp', JSON.stringify(hp));
-  storageSet('dk_sakuTxs', JSON.stringify(sakuTxs));
-  storageSet('dk_wallets', JSON.stringify(wallets));
-  storageSet('dk_saldo', saldoAwal);
-  storageSet('dk_targetSaldo', '0');
-  storageSet('dk_themeMode', savedThemeMode);
-  storageSet('dk_theme', document.documentElement.getAttribute('data-theme')||'light');
-  saveAppPreferences();
-  if(lastTx) storageSet('dk_lastTx', lastTx);
-  else storageRemove('dk_lastTx');
-}
-
-function getMonthTxs(m) {
-  return getCoreManualTxs().filter(t => {
-    const d = new Date(t.date);
-    return d.getFullYear()===m.getFullYear() && d.getMonth()===m.getMonth();
-  });
-}
-
-function getMonthCashflow(monthDate) {
-  const monthTxs = getMonthTxs(monthDate);
-  const income = monthTxs.filter(t=>t.type==='income').reduce((sum, t)=>sum+t.amount,0);
-  const expense = monthTxs.filter(t=>t.type==='expense').reduce((sum, t)=>sum+t.amount,0);
-  return {income, expense, monthTxs};
-}
-
-function getRealBalance() {
-  const base = parseFloat(saldoAwal || 0) || 0;
-  const delta = getCoreManualTxs().reduce((sum, tx)=>sum + (tx.type==='income' ? tx.amount : -tx.amount), 0);
-  return base + delta;
-}
-
-function updateFab() {
-  const fab = document.getElementById('mainFab');
-  if(!fab) return;
-  fab.title = 'Tambah transaksi';
-  fab.setAttribute('aria-label', 'Tambah transaksi');
-  fab.innerHTML = '＋';
-}
-
-function handleMainFab() {
-  openTxModal();
-}
-
-function applyAppMode() {
-  ['hutang','page-hutang'].forEach(id=>{
-    const el = id === 'hutang' ? getNavTabTarget('hutang','nav') || getNavTabTarget('hutang','tab') : document.getElementById(id);
-    if(el) el.style.display = 'none';
-  });
-  setElementVisible(getNavTabTarget('hutang','nav'), false);
-  setElementVisible(getNavTabTarget('hutang','tab'), false);
-  setElementVisible(document.getElementById('page-hutang'), false);
-  const hideSelectors = [
-    '#walletGrid',
-    '#goalsList',
-    '#goalVoteBar',
-    '#goalHistoryWrap',
-    '#wajibList',
-    '#laporanKeuanganSec',
-    '#actionHubModal',
-    '#feedbackModal',
-    '#onboardingModal'
-  ];
-  hideSelectors.forEach(selector=>{
-    const el = document.querySelector(selector);
-    if(el) el.style.display = 'none';
-  });
-  const goalsSection = document.getElementById('goalsList')?.closest('.sec');
-  const wajibSection = document.getElementById('wajibList')?.closest('.sec');
-  const oldDonut = document.getElementById('donutWrap')?.closest('.sec');
-  const oldTop = document.getElementById('topList')?.closest('.sec');
-  if(goalsSection) goalsSection.style.display = 'none';
-  if(wajibSection) wajibSection.style.display = 'none';
-  if(oldDonut) oldDonut.style.display = 'none';
-  if(oldTop) oldTop.style.display = 'none';
-  const tabs = document.querySelector('.tabs');
-  if(tabs) tabs.style.display = 'none';
-  if(currentPage === 'hutang') activatePageUI('dashboard');
-  updateFab();
-}
-
-function render(name) {
-  if(name==='dashboard') renderDashboard();
-  if(name==='transaksi') renderTxList();
-  if(name==='kelola') { renderKelolaLayout(); renderCats(); renderStats(); renderSaldo(); }
-}
-
-function renderDashboard() {
-  const now = new Date();
-  const flow = getMonthCashflow(now);
-  const saldoTotal = getRealBalance();
-  const balEl = document.getElementById('balAmt');
-  if(balEl) {
-    balEl.textContent = fmtS(saldoTotal);
-    balEl.style.color = saldoTotal < 0 ? '#ff6b6b' : 'white';
-  }
-  const balSub = document.getElementById('balSub');
-  if(balSub) balSub.textContent = `${MF[now.getMonth()]} ${now.getFullYear()} · Saldo utama ${fmt(saldoTotal)}`;
-  const totalInc = document.getElementById('totalInc');
-  const totalExp = document.getElementById('totalExp');
-  if(totalInc) totalInc.textContent = fmt(flow.income);
-  if(totalExp) totalExp.textContent = fmt(flow.expense);
-  const badge = document.getElementById('balBadge');
-  if(badge) {
-    const diff = saldoTotal - saldoAwal;
-    if(diff < 0) {
-      badge.textContent = 'Minus ' + fmtS(diff);
-      badge.className = 'balance-badge badge-danger';
-    } else if(diff > 0) {
-      badge.textContent = 'Naik +' + fmtN(diff);
-      badge.className = 'balance-badge badge-profit';
-    } else {
-      badge.textContent = 'Stabil';
-      badge.className = 'balance-badge badge-aman';
-    }
-  }
-  const balanceCard = document.querySelector('.balance-card');
-  if(balanceCard) balanceCard.removeAttribute('onclick');
-  document.querySelectorAll('.stat-card').forEach(card=>card.removeAttribute('onclick'));
-  checkAlert();
-}
-
-function renderTxList() {
-  const label = document.getElementById('txMonthLabel');
-  if(label) label.textContent = MF[curMonth.getMonth()]+' '+curMonth.getFullYear();
-  const el = document.getElementById('txList');
-  if(!el) return;
-  const monthTxs = getMonthTxs(curMonth).sort((a,b)=>new Date(b.date)-new Date(a.date));
-  if(!monthTxs.length) {
-    el.innerHTML = '<div class="tx-empty">Belum ada transaksi bulan ini</div>';
-    return;
-  }
-  const grouped = {};
-  monthTxs.forEach(t=>{
-    const d = new Date(t.date);
-    const k = d.toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long'});
-    if(!grouped[k]) grouped[k] = [];
-    grouped[k].push(t);
-  });
-  el.innerHTML = Object.entries(grouped).map(([date, dayTxs])=>`
-    <div class="tx-date-group">
-      <div class="tx-date-label">${esc(date)}</div>
-      ${dayTxs.map(t=>{
-        const c = cats.find(x=>x.id===t.catId);
-        return `
-          <div class="tx-item" id="tx-${t.id}">
-            <div class="tx-emoji" onclick="openEditTx('${t.id}')">${c?.emoji || '📦'}</div>
-            <div class="tx-info" onclick="openEditTx('${t.id}')">
-              <div class="tx-cat">${esc(c?.name || 'Lain-lain')}</div>
-              <div class="tx-note">${esc(t.note || 'Transaksi manual')}</div>
-            </div>
-            <div class="tx-right">
-              <div class="tx-amt ${t.type}">${t.type==='income'?'+':'-'}${fmt(t.amount)}</div>
-              <div class="tx-time">${new Date(t.date).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})}</div>
-            </div>
-            <div class="tx-del" onclick="delTx('${t.id}')">🗑️</div>
-          </div>
-        `;
-      }).join('')}
-    </div>
-  `).join('');
-}
-
-function renderCats() {
-  const list = getCoreVisibleCategories().map(c=>`
-    <div class="cat-item">
-      <div class="cat-emoji">${c.emoji}</div>
-      <div class="cat-name">${esc(c.name)}</div>
-      <div class="cat-type ${c.type}">${c.type==='income'?'Pemasukan':'Pengeluaran'}</div>
-      <div class="cat-acts">
-        <button class="cbtn edit" onclick="editCat('${c.id}')">✏️</button>
-        <button class="cbtn del" onclick="delCat('${c.id}')">🗑️</button>
-      </div>
-    </div>
-  `).join('');
-  const a = document.getElementById('catList');
-  const b = document.getElementById('catListProxy');
-  if(a) a.innerHTML = list;
-  if(b) b.innerHTML = list;
-}
-
-function renderCatGrid() {
-  const options = getCoreVisibleCategories(curType).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''), 'id'));
-  document.getElementById('catGrid').innerHTML = options.map(c=>`<div class="cat-opt${selCat===c.id?' sel':''}" onclick="selCatFn('${c.id}')"><div class="cat-opt-icon">${c.emoji}</div><div class="cat-opt-name">${esc(c.name)}</div></div>`).join('');
-}
-
-function renderKelolaLayout() {
-  const wrap = document.getElementById('kelolaWrap');
-  if(!wrap) return;
-  wrap.innerHTML = `
-    <div class="sec">
-      <div class="fold-card open" id="foldSaldoUtama">
-        <div class="fold-head" onclick="toggleFold('foldSaldoUtama')">
-          <div class="fold-left">
-            <div class="fold-icon">💰</div>
-            <div>
-              <div class="fold-title">Saldo Utama</div>
-              <div class="fold-sub">Satu saldo utama untuk semua transaksi manual.</div>
-            </div>
-          </div>
-          <div class="fold-arrow">⌄</div>
-        </div>
-        <div class="fold-body">
-          <div class="saldo-card" onclick="openSaldoModal()">
-            <div>
-              <div class="saldo-label">Tap untuk ubah saldo awal</div>
-              <div class="saldo-val" id="saldoAwalValProxy">Rp 0</div>
-            </div>
-            <div style="font-size:28px;">💰</div>
-          </div>
-          <div class="backup-row">
-            <button class="btn-ghost" onclick="exportData()">⬇️ Export Data</button>
-            <button class="btn-ghost" onclick="triggerImport()">⬆️ Import Data</button>
-          </div>
-          <button class="btn-reset" onclick="resetSaldo()">Reset Saldo</button>
-        </div>
-      </div>
-    </div>
-    <div class="sec">
-      <div class="fold-card" id="foldKategori">
-        <div class="fold-head" onclick="toggleFold('foldKategori')">
-          <div class="fold-left">
-            <div class="fold-icon">📂</div>
-            <div>
-              <div class="fold-title">Kategori</div>
-              <div class="fold-sub">Kelola kategori pemasukan dan pengeluaran manual.</div>
-            </div>
-          </div>
-          <div class="fold-arrow">⌄</div>
-        </div>
-        <div class="fold-body">
-          <div class="sec-hd">
-            <span class="sec-title">Daftar Kategori</span>
-            <button class="link-btn" onclick="openAddCatModal()">+ Tambah</button>
-          </div>
-          <div class="cat-list" id="catListProxy"></div>
-        </div>
-      </div>
-    </div>
-    <div class="sec" style="margin-bottom:16px;">
-      <div class="fold-card" id="foldStatistik">
-        <div class="fold-head" onclick="toggleFold('foldStatistik')">
-          <div class="fold-left">
-            <div class="fold-icon">📊</div>
-            <div>
-              <div class="fold-title">Statistik 6 Bulan</div>
-              <div class="fold-sub">Ringkasan pemasukan dan pengeluaran manual.</div>
-            </div>
-          </div>
-          <div class="fold-arrow">⌄</div>
-        </div>
-        <div class="fold-body">
-          <div class="trend-card">
-            <div class="bar-chart" id="barChartProxy"></div>
-            <div class="chart-legend">
-              <div class="cl-item"><div class="cl-dot" style="background:var(--green)"></div>Pemasukan</div>
-              <div class="cl-item"><div class="cl-dot" style="background:var(--red)"></div>Pengeluaran</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>`;
-}
-
-function renderSaldo() {
-  const value = fmt(saldoAwal);
-  const a = document.getElementById('saldoAwalVal');
-  const b = document.getElementById('saldoAwalValProxy');
-  if(a) a.textContent = value;
-  if(b) b.textContent = value;
-}
-
-function renderTargetSaldo() {}
-function renderSaku() {}
-function renderWajibFunds() {}
-function renderGoals() {}
-function renderHP() {
-  const el = document.getElementById('hpList');
-  if(el) el.innerHTML = '<div class="tx-empty">Fitur hutang-piutang dinonaktifkan sementara.</div>';
-}
-function renderWalletCards() {}
-function renderWalletProxyCards() {}
-function renderWalletModuleSettings() {}
-function renderFeedbackPanel() {}
-function maybeShowOnboarding() {}
-
-function exportData() {
-  const payload = {
-    exportedAt: new Date().toISOString(),
-    version: 'core-basic',
-    data: {
-      txs: getCoreManualTxs(),
-      cats: getCoreVisibleCategories(),
-      saldoAwal,
-      lastTx,
-      theme: document.documentElement.getAttribute('data-theme')||'light',
-      themeMode: savedThemeMode
-    }
-  };
-  const blob = new Blob([JSON.stringify(payload,null,2)], {type:'application/json'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  const dt = new Date();
-  const stamp = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
-  a.href = url;
-  a.download = `dompetku-basic-backup-${stamp}.json`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
-
-function handleImportFileV2(e) {
-  const file = e.target.files?.[0];
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = ev => {
-    try {
-      const parsed = JSON.parse(ev.target.result);
-      const data = parsed?.data || parsed;
-      const transactions = data.transactions || data.txs;
-      const categories = data.categories || data.cats;
-      if(!Array.isArray(transactions) || !Array.isArray(categories)) {
-        throw new Error('Format backup tidak cocok');
-      }
-      askConfirm('Import akan menimpa transaksi manual yang sekarang. Lanjut?', ()=>{
-        txs = transactions.map(normalizeTxItem).filter(tx => !tx.source || tx.source === 'manual');
-        cats = categories.map(normalizeCatItem).filter(cat => !isCoreHiddenCategory(cat));
-        saldoAwal = parseFloat(data.saldoAwal ?? wallets?.operational?.openingBalance ?? 0) || 0;
-        lastTx = data.lastTx || '';
-        const theme = data.theme === 'dark' ? 'dark' : 'light';
-        document.documentElement.setAttribute('data-theme', theme);
-        savedTheme = theme;
-        savedThemeMode = data.themeMode === 'manual' ? 'manual' : 'auto';
-        storageSet('dk_themeMode', savedThemeMode);
-        syncThemeMode();
-        normalizeRuntimeState();
-        save();
-        refreshAllViews();
-        alert('Import berhasil.');
-      }, {title:'Import Data', okText:'Import', danger:true});
-    } catch(err) {
-      alert('File backup tidak valid.');
-    } finally {
-      e.target.value = '';
-    }
-  };
-  reader.readAsText(file);
-}
-
-function refreshAllViews() {
-  if(currentPage==='hutang') currentPage = 'dashboard';
-  if(currentPage==='kelola') renderKelolaLayout();
-  renderDashboard();
-  renderTxList();
-  renderSaldo();
-  renderCats();
-  renderStats();
-  updateFab();
-  applyAppMode();
-}
 
 normalizeRuntimeState();
 applySurfaceSimplification();
