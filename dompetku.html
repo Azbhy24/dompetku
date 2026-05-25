@@ -984,6 +984,62 @@ function storageRemove(key) {
   }
 }
 
+let txs = JSON.parse(storageGet('dk_txs','[]')||'[]');
+let cats = JSON.parse(storageGet('dk_cats','null')||'null') || [
+  {id:'c1',name:'Makan',emoji:'🍔',type:'expense'},{id:'c2',name:'Transport',emoji:'🚗',type:'expense'},
+  {id:'c3',name:'Nongkrong',emoji:'☕',type:'expense'},{id:'c4',name:'Belanja',emoji:'🛒',type:'expense'},
+  {id:'c5',name:'Pulsa',emoji:'📱',type:'expense'},{id:'c6',name:'Hiburan',emoji:'🎮',type:'expense'},
+  {id:'c7',name:'Kesehatan',emoji:'💊',type:'expense'},{id:'c8',name:'Lain-lain',emoji:'📦',type:'expense'},
+  {id:'c9',name:'Kiriman Ortu',emoji:'💝',type:'income'},{id:'c10',name:'Beasiswa',emoji:'🎓',type:'income'},
+  {id:'c11',name:'Freelance',emoji:'💻',type:'income'},{id:'c12',name:'Lain-lain',emoji:'💰',type:'income'},
+];
+let goals = JSON.parse(storageGet('dk_goals','[]')||'[]');
+let wajibFunds = JSON.parse(storageGet('dk_wajibFunds','[]')||'[]');
+let hp = JSON.parse(storageGet('dk_hp','[]')||'[]');
+let sakuTxs = JSON.parse(storageGet('dk_sakuTxs','[]')||'[]');
+let saldoAwal = parseFloat(storageGet('dk_saldo','0')||'0');
+let lastTx = storageGet('dk_lastTx', null);
+let savedTheme = storageGet('dk_theme','light') || 'light';
+let savedThemeMode = storageGet('dk_themeMode','auto') || 'auto';
+let targetSaldo = parseFloat(storageGet('dk_targetSaldo','0')||'0');
+let wallets = JSON.parse(storageGet('dk_wallets','null')||'null');
+let feedbackLog = JSON.parse(storageGet('dk_feedback_log','[]')||'[]');
+let curType = 'expense', selCat = null, editCatId = null, curMonth = new Date(), curHP = 'piutang', currentPage = 'dashboard';
+let confirmResolver = null;
+let themeTimer = null;
+let editGoalId = null;
+let editWajibId = null;
+let weeklyExpenseChart = null;
+let monthlyCategoryChart = null;
+const APP_PREFS_KEY = 'app_preferences';
+let appPreferences = null;
+
+// UTILS
+const fmtN = n => Math.abs(Math.round(n)).toLocaleString('id-ID');
+const fmt = n => 'Rp ' + fmtN(n);
+const fmtS = n => (n<0?'-Rp ':'Rp ') + fmtN(n);
+const MN = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+const MF = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+const parseA = s => parseFloat((s||'').replace(/\./g,''))||0;
+const esc = s => String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+
+function dayKeyLocal(value=new Date()){
+  const d = value instanceof Date ? value : new Date(value);
+  if(Number.isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+// Default wallet templates
+const DEFAULT_WALLETS = {
+  operational: { id:'operational', name:'Dompet Operasional', bank:'BRImo', color:'operational', openingBalance:0, locked:false, note:'Saldo aktif untuk transaksi harian.' },
+  emergency: { id:'emergency', name:'Benteng Darurat', bank:'Jago Syariah', color:'emergency', baseBalance:0, locked:true, note:'Cadangan darurat yang tidak dipakai belanja biasa.' },
+  investment: { id:'investment', name:'Pohon Investasi', bank:'Bibit', color:'investment', baseBalance:0, locked:true, note:'Saldo pertumbuhan untuk masa depan.' },
+  business: { id:'business', name:'Modal Bisnis Orderku', bank:'Orderku', color:'business', baseBalance:0, locked:true, note:'Modal usaha khusus jualan pulsa, data, dan diamond.' }
+};
+
+// Core single-user mode hidden categories
+const CORE_HIDDEN_CATEGORY_NAMES = ['kulakan/modal', 'untung jualan'];
+
 function normalizeGoal(goal={}) {
   return {
     id: goal.id || ('g'+Date.now()+Math.floor(Math.random()*1000)),
