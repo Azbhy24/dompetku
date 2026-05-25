@@ -63,6 +63,15 @@ body.splash-lock{overflow:hidden;}
 .stat-label{font-size:11px;color:var(--text2);font-weight:600;text-transform:uppercase;}
 .stat-val{font-size:16px;font-weight:800;font-family:'DM Mono',monospace;margin-top:2px;}
 .stat-val.inc{color:var(--green);}.stat-val.exp{color:var(--red);}
+.quick-card{margin:12px 16px 0;background:var(--card);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow);}
+.quick-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:12px;}
+.quick-title{font-size:13px;font-weight:800;color:var(--text);}
+.quick-hint{font-size:11px;color:var(--text2);line-height:1.45;margin-top:3px;}
+.quick-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+.quick-btn{border:1px solid var(--border);background:var(--card2);color:var(--text);border-radius:12px;min-height:64px;padding:8px 6px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;font-family:'Plus Jakarta Sans',sans-serif;cursor:pointer;}
+.quick-btn.primary{background:linear-gradient(135deg,var(--teal),#38b2ac);border-color:transparent;color:#fff;}
+.quick-icon{font-size:17px;line-height:1;}
+.quick-label{font-size:10px;font-weight:800;line-height:1.15;text-align:center;}
 .wallet-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 16px 0;}
 .wallet-grid.single{grid-template-columns:1fr;}
 .wallet-card{border-radius:18px;padding:14px;box-shadow:var(--shadow);color:#fff;position:relative;overflow:hidden;cursor:pointer;min-height:96px;}
@@ -192,6 +201,10 @@ body.splash-lock{overflow:hidden;}
 .setup-chip-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;}
 .setup-chip{padding:8px 10px;border-radius:999px;border:1px solid var(--border);background:var(--card2);font-size:11px;font-weight:800;color:var(--text2);cursor:pointer;}
 .setup-chip.active{background:var(--teal);border-color:var(--teal);color:#fff;}
+.setup-start{background:var(--card2);border:1px solid var(--border);border-radius:14px;padding:12px;margin-bottom:14px;}
+.setup-start-title{font-size:12px;font-weight:800;color:var(--text);}
+.setup-start-sub{font-size:11px;color:var(--text2);line-height:1.45;margin-top:3px;}
+.setup-start-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;}
 /* TX */
 .month-picker{display:flex;align-items:center;justify-content:space-between;background:var(--card);margin:12px 16px 0;border-radius:var(--radius);padding:12px 16px;box-shadow:var(--shadow);}
 .mnav{width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--card2);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;}
@@ -341,6 +354,7 @@ select.finp{appearance:none;}
   .nav-label{font-size:9px;}
   .fab{width:54px;height:54px;border-radius:16px;}
   .wallet-grid{grid-template-columns:1fr;}
+  .quick-grid{grid-template-columns:repeat(2,1fr);}
   .action-grid{grid-template-columns:1fr 1fr;}
 }
 </style>
@@ -423,6 +437,33 @@ select.finp{appearance:none;}
       <div class="stat-icon">📉</div>
       <div class="stat-label">Pengeluaran</div>
       <div class="stat-val exp" id="totalExp">Rp 0</div>
+    </div>
+  </div>
+
+  <div class="quick-card" id="quickStartCard">
+    <div class="quick-top">
+      <div>
+        <div class="quick-title">Mulai Cepat</div>
+        <div class="quick-hint" id="quickHint">Catat transaksi pertama atau atur saldo awal.</div>
+      </div>
+    </div>
+    <div class="quick-grid">
+      <button class="quick-btn primary" type="button" onclick="openTxModal()">
+        <span class="quick-icon">ðŸ§¾</span>
+        <span class="quick-label">Transaksi</span>
+      </button>
+      <button class="quick-btn" type="button" onclick="openSaldoModal()">
+        <span class="quick-icon">ðŸ’°</span>
+        <span class="quick-label">Saldo Awal</span>
+      </button>
+      <button class="quick-btn" type="button" onclick="openGoalModal()">
+        <span class="quick-icon">ðŸŽ¯</span>
+        <span class="quick-label">Goal</span>
+      </button>
+      <button class="quick-btn" type="button" onclick="exportData()">
+        <span class="quick-icon">â¬‡ï¸</span>
+        <span class="quick-label">Backup</span>
+      </button>
     </div>
   </div>
 
@@ -667,6 +708,14 @@ select.finp{appearance:none;}
         <button type="button" class="setup-chip" id="setupWalletEmergency" onclick="toggleSetupWallet('emergency')">Benteng Darurat</button>
         <button type="button" class="setup-chip" id="setupWalletInvestment" onclick="toggleSetupWallet('investment')">Pohon Investasi</button>
         <button type="button" class="setup-chip" id="setupWalletBusiness" onclick="toggleSetupWallet('business')">Modal Bisnis</button>
+      </div>
+    </div>
+    <div class="setup-start">
+      <div class="setup-start-title">Langkah awal yang disarankan</div>
+      <div class="setup-start-sub">Mulai dari saldo awal, lalu catat transaksi pertama. Dua hal ini langsung membuat ringkasan keuangan terbaca.</div>
+      <div class="setup-start-actions">
+        <button class="btn-ghost" type="button" onclick="startOnboardingAction('saldo')">Atur Saldo</button>
+        <button class="btn-ghost" type="button" onclick="startOnboardingAction('tx')">Tambah Transaksi</button>
       </div>
     </div>
     <button class="btn-ok" onclick="applyOnboardingSetup()">Mulai Pakai</button>
@@ -1575,6 +1624,7 @@ function renderDashboard() {
   const now = new Date();
   const flow = getMonthCashflow(now);
   const saldoTotal = getRealBalance();
+  renderQuickHint(flow, saldoTotal);
   
   if (isSimpleMode()) {
     const balEl = document.getElementById('balAmt');
@@ -1668,6 +1718,29 @@ function renderDashboard() {
     renderWajibFunds();
   }
   checkAlert();
+}
+
+function renderQuickHint(flow, saldoTotal) {
+  const hint = document.getElementById('quickHint');
+  if(!hint) return;
+
+  if(!saldoAwal && saldoTotal === 0 && !txs.length) {
+    hint.textContent = 'Mulai dari Saldo Awal, lalu catat transaksi pertama.';
+    return;
+  }
+  if(!txs.length) {
+    hint.textContent = 'Saldo sudah siap. Lanjut catat pemasukan atau pengeluaran pertama.';
+    return;
+  }
+  if(flow.expense > flow.income && flow.income > 0) {
+    hint.textContent = 'Pengeluaran bulan ini lebih besar dari pemasukan. Cek kategori terbesar hari ini.';
+    return;
+  }
+  if(goals.length === 0) {
+    hint.textContent = 'Transaksi sudah berjalan. Tambahkan goal agar uang punya arah.';
+    return;
+  }
+  hint.textContent = 'Keuangan sudah tercatat. Jangan lupa backup data secara berkala.';
 }
 
 function renderDonut(mtx) {
@@ -3468,6 +3541,15 @@ function applyOnboardingSetup() {
   saveAppPreferences();
   closeModal('onboardingModal');
   refreshAllViews();
+}
+
+function startOnboardingAction(action) {
+  applyOnboardingSetup();
+  if(action === 'saldo') {
+    openSaldoModal();
+  } else if(action === 'tx') {
+    openTxModal();
+  }
 }
 
 function maybeShowOnboarding() {
