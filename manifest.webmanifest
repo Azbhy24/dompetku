@@ -1,0 +1,21 @@
+{
+  "name": "DompetKu",
+  "short_name": "DompetKu",
+  "description": "Aplikasi pencatat keuangan pribadi untuk transaksi, hutang piutang, target tabungan, dan beberapa dompet.",
+  "start_url": "./dompetku.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f0f4f8",
+  "theme_color": "#2c7a7b",
+  "categories": ["finance", "productivity"],
+  "lang": "id",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

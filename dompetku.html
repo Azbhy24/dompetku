@@ -9,6 +9,9 @@
 <meta name="theme-color" content="#2c7a7b">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="DompetKu">
+<meta name="description" content="DompetKu adalah aplikasi pencatat keuangan pribadi untuk transaksi, hutang piutang, target tabungan, dan beberapa dompet.">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="mask-icon" href="./icon.svg" color="#2c7a7b">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
@@ -358,7 +361,7 @@ select.finp{appearance:none;}
     <div class="logo-icon">💰</div>
     <span class="logo-text">DompetKu</span>
   </div>
-  <div class="btn-icon" onclick="toggleTheme()" id="themeBtn">🌙</div>
+  <button class="btn-icon" onclick="toggleTheme()" id="themeBtn" type="button" aria-label="Ganti tema">🌙</button>
 </div>
 
 <div class="alert" id="alertBanner"></div>
@@ -3628,10 +3631,45 @@ function getCoreManualTxs() {
     .filter(tx => !tx.source || tx.source === 'manual');
 }
 
+function applyAccessibilityEnhancements() {
+  const labels = [
+    ['#mainFab', 'Buka pusat aksi'],
+    ['.mnav[onclick="changeMonth(-1)"]', 'Bulan sebelumnya'],
+    ['.mnav[onclick="changeMonth(1)"]', 'Bulan berikutnya'],
+    ['.balance-card', 'Buka detail saldo'],
+    ['.wallet-card.operational', 'Edit dompet operasional'],
+    ['.wallet-card.emergency', 'Edit dompet darurat'],
+    ['.wallet-card.investment', 'Edit dompet investasi'],
+    ['.wallet-card.business', 'Edit dompet bisnis'],
+    ['.saldo-card[onclick="openSaldoModal()"]', 'Edit saldo utama'],
+    ['.saldo-card[onclick="openTargetModal()"]', 'Edit target saldo']
+  ];
+
+  labels.forEach(([selector, label]) => {
+    document.querySelectorAll(selector).forEach(el => {
+      if (!el.getAttribute('aria-label')) el.setAttribute('aria-label', label);
+      if (el.tagName !== 'BUTTON' && !el.getAttribute('role')) el.setAttribute('role', 'button');
+      if (el.tagName !== 'BUTTON' && !el.hasAttribute('tabindex')) el.setAttribute('tabindex', '0');
+    });
+  });
+
+  document.querySelectorAll('[role="button"][onclick]').forEach(el => {
+    if (el.dataset.keyActionReady) return;
+    el.dataset.keyActionReady = '1';
+    el.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        el.click();
+      }
+    });
+  });
+}
+
 
 
 normalizeRuntimeState();
 applySurfaceSimplification();
+applyAccessibilityEnhancements();
 
 document.querySelectorAll('.overlay').forEach(el=>{el.addEventListener('click',e=>{if(e.target===el)el.classList.remove('open');});});
 document.getElementById('importFile').addEventListener('change', handleImportFileV2);
@@ -3644,6 +3682,12 @@ curMonth=new Date();
 refreshAllViews();
 hideSplash();
 maybeShowOnboarding();
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").catch(() => {});
+  });
+}
 </script>
 </body>
 </html>
