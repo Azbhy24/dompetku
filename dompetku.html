@@ -333,6 +333,12 @@ body.splash-lock{overflow:hidden;}
 .btn-cancel{width:100%;padding:12px;border:none;background:none;color:var(--text2);font-size:14px;font-weight:600;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;margin-top:4px;}
 .btn-reset{width:100%;padding:12px;border-radius:var(--radius-sm);border:1.5px solid var(--red);background:var(--red-light);color:var(--red);font-size:13px;font-weight:700;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;margin-top:8px;}
 .backup-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;}
+.backup-status{margin-top:10px;background:var(--card2);border:1px solid var(--border);border-radius:12px;padding:10px 12px;font-size:11px;color:var(--text2);line-height:1.45;}
+.backup-status strong{display:block;color:var(--text);font-size:12px;margin-bottom:3px;}
+.backup-status.warning{background:var(--orange-light);border-color:rgba(221,107,32,.35);color:var(--orange);}
+.backup-status.warning strong{color:var(--orange);}
+.backup-status.safe{background:var(--teal-light);border-color:rgba(44,122,123,.25);color:var(--teal);}
+.backup-status.safe strong{color:var(--teal);}
 .triple-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px;}
 .btn-ghost{width:100%;padding:12px;border-radius:var(--radius-sm);border:1.5px solid var(--border);background:var(--card2);color:var(--text);font-size:13px;font-weight:700;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;}
 .btn-mini{width:100%;padding:10px 8px;border-radius:var(--radius-sm);border:1.5px solid var(--border);background:var(--card2);color:var(--text);font-size:11px;font-weight:800;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;}
@@ -580,6 +586,7 @@ select.finp{appearance:none;}
       <button class="btn-ghost" onclick="exportData()">⬇️ Export Data</button>
       <button class="btn-ghost" onclick="triggerImport()">⬆️ Import Data</button>
     </div>
+    <div class="backup-status" id="backupStatusLegacy"></div>
     <input type="file" id="importFile" accept="application/json" style="display:none">
   </div>
 
@@ -1056,6 +1063,7 @@ let savedThemeMode = storageGet('dk_themeMode','auto') || 'auto';
 let targetSaldo = parseFloat(storageGet('dk_targetSaldo','0')||'0');
 let wallets = JSON.parse(storageGet('dk_wallets','null')||'null');
 let feedbackLog = JSON.parse(storageGet('dk_feedback_log','[]')||'[]');
+let backupMeta = JSON.parse(storageGet('dk_backup_meta','{}')||'{}');
 let curType = 'expense', selCat = null, editCatId = null, curMonth = new Date(), curHP = 'piutang', currentPage = 'dashboard';
 let confirmResolver = null;
 let themeTimer = null;
@@ -1473,6 +1481,10 @@ function save() {
   else storageRemove('dk_lastTx');
 }
 
+function saveBackupMeta() {
+  storageSet('dk_backup_meta', JSON.stringify(backupMeta || {}));
+}
+
 function getMonthTxs(m) {
   return getCoreManualTxs().filter(t => {
     const d = new Date(t.date);
@@ -1740,7 +1752,56 @@ function renderQuickHint(flow, saldoTotal) {
     hint.textContent = 'Transaksi sudah berjalan. Tambahkan goal agar uang punya arah.';
     return;
   }
+  if(isBackupStale()) {
+    hint.textContent = 'Data sudah berkembang. Backup sekarang supaya aman kalau browser atau HP bermasalah.';
+    return;
+  }
   hint.textContent = 'Keuangan sudah tercatat. Jangan lupa backup data secara berkala.';
+}
+
+function isBackupStale() {
+  if(!backupMeta?.lastExportAt) return txs.length > 0 || goals.length > 0 || hp.length > 0 || sakuTxs.length > 0;
+  const last = new Date(backupMeta.lastExportAt).getTime();
+  if(!Number.isFinite(last)) return true;
+  return (Date.now() - last) > 1000 * 60 * 60 * 24 * 14;
+}
+
+function formatBackupTime(value) {
+  if(!value) return '';
+  const date = new Date(value);
+  if(Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString('id-ID', { dateStyle:'medium', timeStyle:'short' });
+}
+
+function renderBackupStatus() {
+  const targets = ['backupStatus', 'backupStatusLegacy']
+    .map(id => document.getElementById(id))
+    .filter(Boolean);
+  if(!targets.length) return;
+
+  const lastExport = formatBackupTime(backupMeta?.lastExportAt);
+  const lastImport = formatBackupTime(backupMeta?.lastImportAt);
+  const stale = isBackupStale();
+  const hasData = txs.length > 0 || goals.length > 0 || wajibFunds.length > 0 || hp.length > 0 || sakuTxs.length > 0;
+  let title = 'Backup Data';
+  let body = 'Belum ada data penting. Nanti kalau sudah mulai dipakai, lakukan export secara berkala.';
+  let state = '';
+
+  if(lastExport) {
+    title = stale ? 'Backup Perlu Diperbarui' : 'Backup Terakhir Aman';
+    body = `Export terakhir: ${lastExport}.`;
+    if(lastImport) body += ` Import terakhir: ${lastImport}.`;
+    state = stale ? 'warning' : 'safe';
+  } else if(hasData) {
+    title = 'Belum Pernah Backup';
+    body = 'Data sudah ada di browser ini. Export sekarang supaya aman kalau cache/browser/HP bermasalah.';
+    state = 'warning';
+  }
+
+  targets.forEach(el => {
+    el.className = `backup-status ${state}`.trim();
+    el.innerHTML = `<strong>${title}</strong>${body}`;
+  });
 }
 
 function renderDonut(mtx) {
@@ -2063,12 +2124,12 @@ function renderTargetSaldo() {
 }
 
 function resetSaldo() {
-  askConfirm('Reset dompet operasional ke nol? Dompet lain tetap aman.', ()=>{
+  askConfirm('Reset dompet operasional ke nol? Aksi ini mengubah saldo awal dan tidak bisa dibatalkan kecuali kamu punya backup.', ()=>{
     wallets.operational.openingBalance = 0;
     saldoAwal = 0;
     save();
     refreshAllViews();
-  }, {title:'Reset Operasional', okText:'Reset', danger:true});
+  }, {title:'Reset Saldo Operasional', okText:'Reset Saldo', danger:true});
 }
 
 function openTargetModal() {
@@ -2314,26 +2375,20 @@ function hapusSemua() {
     ? txs.filter(t=>!isSystemTx(t))
     : txs.filter(t=>t.type===curDetailFilter && !isSystemTx(t));
   if(!removable.length) return alert('Tidak ada transaksi manual yang bisa dihapus pada tampilan ini.');
-  askConfirm('Hapus '+label+'? Transaksi sistem akan tetap aman.', ()=>{
+  askConfirm('Hapus '+label+'? Aksi ini tidak bisa dibatalkan. Buat backup dulu kalau data ini masih penting. Transaksi sistem akan tetap aman.', ()=>{
     const removableIds = new Set(removable.map(t=>t.id));
     txs = txs.filter(t=>!removableIds.has(t.id));
     save();
     refreshAllViews();
-  }, {title:'Hapus Data', okText:'Hapus', danger:true});
+  }, {title:'Hapus Data Permanen', okText:'Hapus', danger:true});
 }
 
 function exportData() {
-  const payload = {
-    exportedAt: new Date().toISOString(),
-    version: 'core-basic',
-    data: {
-      txs: getCoreManualTxs(),
-      cats: getCoreVisibleCategories(),
-      saldoAwal,
-      lastTx,
-      theme: document.documentElement.getAttribute('data-theme')||'light',
-      themeMode: savedThemeMode
-    }
+  const payload = getAppStateSnapshot();
+  payload.backup = {
+    type: 'full-local-snapshot',
+    app: 'DompetKu',
+    note: 'Simpan file ini di tempat aman. Import akan menimpa data DompetKu di browser.'
   };
   const blob = new Blob([JSON.stringify(payload,null,2)], {type:'application/json'});
   const url = URL.createObjectURL(blob);
@@ -2341,11 +2396,21 @@ function exportData() {
   const dt = new Date();
   const stamp = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
   a.href = url;
-  a.download = `dompetku-basic-backup-${stamp}.json`;
+  a.download = `dompetku-backup-lengkap-${stamp}.json`;
   document.body.appendChild(a);
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+  backupMeta.lastExportAt = new Date().toISOString();
+  backupMeta.lastExportCount = {
+    transactions: txs.length,
+    goals: goals.length,
+    wajibFunds: wajibFunds.length,
+    hp: hp.length,
+    sakuTxs: sakuTxs.length
+  };
+  saveBackupMeta();
+  renderBackupStatus();
 }
 
 function triggerImport() {
@@ -2404,22 +2469,37 @@ function handleImportFileV2(e) {
       if(!Array.isArray(transactions) || !Array.isArray(categories)) {
         throw new Error('Format backup tidak cocok');
       }
-      askConfirm('Import akan menimpa transaksi manual yang sekarang. Lanjut?', ()=>{
+      askConfirm('Import akan menimpa data DompetKu di browser ini. Sebaiknya export dulu data saat ini sebelum lanjut.', ()=>{
         txs = transactions.map(normalizeTxItem).filter(tx => !tx.source || tx.source === 'manual');
         cats = categories.map(normalizeCatItem).filter(cat => !isCoreHiddenCategory(cat));
+        goals = Array.isArray(data.goals) ? data.goals.map(normalizeGoal) : goals;
+        wajibFunds = Array.isArray(data.wajibFunds) ? data.wajibFunds.map(normalizeWajibFund) : wajibFunds;
+        hp = Array.isArray(data.hp) ? data.hp.map(normalizeHPItem) : hp;
+        sakuTxs = Array.isArray(data.sakuTxs) ? data.sakuTxs.map(normalizeSakuItem) : sakuTxs;
+        wallets = normalizeWalletState(data.wallets || wallets);
         saldoAwal = parseFloat(data.saldoAwal ?? wallets?.operational?.openingBalance ?? 0) || 0;
         lastTx = data.lastTx || '';
-        const theme = data.theme === 'dark' ? 'dark' : 'light';
+        targetSaldo = parseFloat(data.meta?.targetSaldo ?? data.targetSaldo ?? targetSaldo ?? 0) || 0;
+        const importedTheme = data.preferences?.theme || data.theme;
+        const importedThemeMode = data.preferences?.themeMode || data.themeMode;
+        const theme = importedTheme === 'dark' ? 'dark' : 'light';
         document.documentElement.setAttribute('data-theme', theme);
         savedTheme = theme;
-        savedThemeMode = data.themeMode === 'manual' ? 'manual' : 'auto';
+        savedThemeMode = importedThemeMode === 'manual' ? 'manual' : 'auto';
         storageSet('dk_themeMode', savedThemeMode);
+        if(data.preferences?.appPreferences) {
+          appPreferences = normalizeAppPreferences(data.preferences.appPreferences);
+          saveAppPreferences();
+        }
+        backupMeta.lastImportAt = new Date().toISOString();
+        backupMeta.lastImportName = file.name;
+        saveBackupMeta();
         syncThemeMode();
         normalizeRuntimeState();
         save();
         refreshAllViews();
-        alert('Import berhasil.');
-      }, {title:'Import Data', okText:'Import', danger:true});
+        alert('Import berhasil. Data lengkap yang tersedia di file backup sudah dipulihkan.');
+      }, {title:'Import Data', okText:'Import & Timpa', danger:true});
     } catch(err) {
       alert('File backup tidak valid.');
     } finally {
@@ -2556,6 +2636,7 @@ function renderKelolaLayout() {
             <button class="btn-ghost" onclick="exportData()">⬇️ Export Data</button>
             <button class="btn-ghost" onclick="triggerImport()">⬆️ Import Data</button>
           </div>
+          <div class="backup-status" id="backupStatus"></div>
           <button class="btn-reset" onclick="resetSaldo()">Reset Saldo</button>
         </div>
       </div>
@@ -3085,6 +3166,7 @@ function refreshAllViews() {
   renderStats();
   updateFab();
   applyAppMode();
+  renderBackupStatus();
 }
 
 function getActionHubItems() {
