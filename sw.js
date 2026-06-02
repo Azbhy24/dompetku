@@ -1,4 +1,4 @@
-const CACHE_NAME = "dompetku-v3";
+const CACHE_NAME = "dompetku-v4";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -33,10 +33,10 @@ self.addEventListener("fetch", event => {
       fetch(event.request)
         .then(response => {
           const copy = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put("./dompetku.html", copy));
+          caches.open(CACHE_NAME).then(cache => cache.put("./index.html", copy));
           return response;
         })
-        .catch(() => caches.match("./dompetku.html"))
+        .catch(() => caches.match("./index.html"))
     );
     return;
   }
@@ -51,7 +51,7 @@ self.addEventListener("fetch", event => {
           caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
           return response;
         })
-        .catch(() => caches.match("./dompetku.html"));
+        .catch(() => caches.match("./index.html"));
     })
   );
 });

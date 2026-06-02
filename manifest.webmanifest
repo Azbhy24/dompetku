@@ -2,7 +2,7 @@
   "name": "DompetKu",
   "short_name": "DompetKu",
   "description": "Aplikasi pencatat keuangan pribadi untuk transaksi, hutang piutang, target tabungan, dan beberapa dompet.",
-  "start_url": "./dompetku.html",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
